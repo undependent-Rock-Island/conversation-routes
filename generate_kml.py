@@ -1,127 +1,89 @@
+"""Create a KML file using CSV and existing list of routes"""
+
 from __future__ import print_function
 import csv
 from lxml import etree
+from RouteEntities import *
+from xml_utils import *
 
-class RouteStep:
-    """One block step along a route."""
-    def __init__(self, blockId, rating):
-        self.blockId = blockId
-        self.rating = rating
-
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-
-def append_node_with_text(parent, tagName, text):
-    node = etree.SubElement(parent, tagName)
-    node.text = text
-
-def create_node(parent, tagName, name):
-    folder = etree.SubElement(parent, tagName)
-    append_node_with_text(folder, "name", name)
-    return folder
-
-def create_folder(parent, name):
-    return create_node(parent, "Folder", name)
-
-def create_rating_folder(parent, num):
-    return create_folder(parent, "Rating" + str(num))
-
-def append_line_style(parent, id, color, width):
-    style = etree.SubElement(parent, "Style", id=id)
-    lineStyle = etree.SubElement(style, "LineStyle")
-    append_node_with_text(lineStyle, "color", color)
-    append_node_with_text(lineStyle, "width", str(width))
-
-def append_style_map(parent, id, normalId, highlightId):
-    styleMap = etree.SubElement(parent, "StyleMap", id=id)
-    append_style_map_pair(styleMap, "normal", normalId)
-    append_style_map_pair(styleMap, "highlight", highlightId)
-
-def append_style_map_pair(parent, key, styleId):
-    pair = etree.SubElement(parent, "Pair")
-    append_node_with_text(pair, "key", key)
-    append_node_with_text(pair, "styleUrl", "#" + styleId)
-
-def parseCsv(filePath, routesPerson, routesComp):
-    with open(filePath, 'rb') as csvfile:
+def parse_csv(file_path, routes_person, routes_comp):
+    """Read CSV and populate person and compilation routes"""
+    with open(file_path, 'rb') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         reader.next() # skip headers
-        
-        currentResident = None
+
+        current_resident = None
         for row in reader:
             if row[1] != "":
-                currentResident = row[1]
-                routesPerson[currentResident] = []
+                current_resident = row[1]
+                routes_person[current_resident] = []
 
             for i in chunks(row[5:], 2):
                 if i[0] != "":
-                    if (i[1] == ""):
+                    if i[1] == "":
                         print("Missing rating: " + i[0])
                     else:
-                        blockId = i[0]
+                        block_id = i[0]
                         rating = int(i[1])
-                        routesPerson[currentResident].append(RouteStep(blockId, rating))
+                        routes_person[current_resident].append(RouteStep(block_id, rating))
 
                         # Populate compilations
-                        if not routesComp.has_key(blockId):
-                            routesComp[blockId] = []
-                        routesComp[blockId].append(rating)
+                        if not routes_comp.has_key(block_id):
+                            routes_comp[block_id] = []
+                        routes_comp[block_id].append(rating)
 
-def fill_in_route_steps(routes, personFolder, person, coordinatesDict):
-
-    ratingsDict = {
-        1 : create_rating_folder(personFolder, 1),
-        2 : create_rating_folder(personFolder, 2),
-        3 : create_rating_folder(personFolder, 3)
+def fill_in_route_steps(routes, person_folder, person, coordinates_dict):
+    """Fill in the route steps"""
+    ratings_dict = {
+        1 : create_rating_folder(person_folder, 1),
+        2 : create_rating_folder(person_folder, 2),
+        3 : create_rating_folder(person_folder, 3)
     }
 
     for route_step in routes[person]:
         # Put the placemark in the right folder
-        parentFolder = ratingsDict[route_step.rating]
-        
-        placemark = create_node(parentFolder, "Placemark", route_step.blockId)
+        parent_folder = ratings_dict[route_step.rating]
+
+        placemark = create_node(parent_folder, "Placemark", route_step.block_id)
         append_node_with_text(placemark, "visibility", "0")
         append_node_with_text(placemark, "styleUrl", "#" + str(route_step.rating) + "StyleMap")
 
         line_string = etree.SubElement(placemark, "LineString")
         append_node_with_text(line_string, "tessellate", "1")
         coordinates = etree.SubElement(line_string, "coordinates")
-        
-        if coordinatesDict.has_key(route_step.blockId):
-            coordinates.text = coordinatesDict[route_step.blockId]
+
+        if coordinates_dict.has_key(route_step.block_id):
+            coordinates.text = coordinates_dict[route_step.block_id]
         else:
-            print("Unknown streetblock2: \"" + route_step.blockId + "\"")
+            print("Unknown streetblock2: \"" + route_step.block_id + "\"")
 
     # Remove ratings folders with no placemarks
-    for rating in ratingsDict.keys():
-        if len(ratingsDict[rating]) <= 1: personFolder.remove(ratingsDict[rating])
+    for rating in ratings_dict.keys():
+        if len(ratings_dict[rating]) <= 1: person_folder.remove(ratings_dict[rating])
 
 #  Read in street block mappings
 print("Reading street blocks ... ", end="")
 
-dockml = etree.parse('doc.kml')
-root = dockml.getroot()
+DOC_KML = etree.parse('doc.kml')
 NSMAP = {'kml': 'http://www.opengis.net/kml/2.2', 'gx' : 'http://www.google.com/kml/ext/2.2'}
 
-folder = dockml.xpath("//kml:Folder[./kml:name = 'STREETBLOCKS 11/8/16']", namespaces = NSMAP)[0]
+folder = DOC_KML.xpath("//kml:Folder[./kml:name = 'STREETBLOCKS 11/8/16']", namespaces = NSMAP)[0]
 
-coordinatesDict = {}
+coordinates_dict = {}
 for placemark in folder.xpath('.//kml:Placemark', namespaces=NSMAP):
     #print(placemark[0].text, placemark[3][1].text.strip())
-    coordinatesDict[placemark[0].text] = placemark[3][1].text.strip()
+    coordinates_dict[placemark[0].text] = placemark[3][1].text.strip()
 
-print(len(coordinatesDict))
+print(len(coordinates_dict))
 
 #  Parse google sheets as CSV
 walkingRoutesPerson = {} # Person -> array of route steps
 walkingRoutesComp = {} # Block ID -> array of ratings
-parseCsv('walking.csv', walkingRoutesPerson, walkingRoutesComp)
+parse_csv('walking.csv', walkingRoutesPerson, walkingRoutesComp)
 
 bikingRoutesPerson = {} # Person -> array of route steps
 bikingRoutesComp = {} # Block ID -> array of ratings
-parseCsv('biking.csv', bikingRoutesPerson, bikingRoutesComp)
+parse_csv('biking.csv', bikingRoutesPerson, bikingRoutesComp)
 
 # Create main Kml structure
 kml = etree.Element('kml', nsmap=NSMAP)
@@ -143,25 +105,25 @@ for person in walkingRoutesPerson.keys():
     walkingFolderPerson = create_folder(personFolder, "Walking")
     bikingFolderPerson = create_folder(personFolder, "Biking")
 
-    fill_in_route_steps(walkingRoutesPerson, walkingFolderPerson, person, coordinatesDict)
-    fill_in_route_steps(bikingRoutesPerson, bikingFolderPerson, person, coordinatesDict)
+    fill_in_route_steps(walkingRoutesPerson, walkingFolderPerson, person, coordinates_dict)
+    fill_in_route_steps(bikingRoutesPerson, bikingFolderPerson, person, coordinates_dict)
 
 def populate_compulations(routesComp, rootFolder):
-    for blockId in routesComp.keys():
-        rating = max(routesComp[blockId])
+    for block_id in routesComp.keys():
+        rating = max(routesComp[block_id])
 
-        placemark = create_node(rootFolder, "Placemark", blockId)
+        placemark = create_node(rootFolder, "Placemark", block_id)
         append_node_with_text(placemark, "visibility", "0")
         append_node_with_text(placemark, "styleUrl", "#" + str(rating) + "StyleMap")
 
         line_string = etree.SubElement(placemark, "LineString")
         append_node_with_text(line_string, "tessellate", "1")
         coordinates = etree.SubElement(line_string, "coordinates")
-        
-        if coordinatesDict.has_key(blockId):
-            coordinates.text = coordinatesDict[blockId]
+
+        if coordinates_dict.has_key(block_id):
+            coordinates.text = coordinates_dict[block_id]
         else:
-            print("Unknown streetblock: \"" + blockId + "\"")
+            print("Unknown streetblock: \"" + block_id + "\"")
 
 # Populate compilations
 walkingFolderComp = create_folder(compilationsFolder, "Walking")

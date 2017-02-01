@@ -1,3 +1,4 @@
 python_generated.kml
 .vscode/
 tags
+*.pyc
