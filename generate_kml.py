@@ -8,11 +8,11 @@ from xml_utils import *
 
 def parse_csv(file_path, routes_person, routes_comp):
     """Read CSV and populate person and compilation routes"""
-    with open(file_path, 'rb') as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        reader.next() # skip headers
+    with open(file_path) as csvfile:
+        csvfile.readline()  # skip headers
 
         current_resident = None
+        reader = csv.reader(csvfile, delimiter=',')
         for row in reader:
             if row[1] != "":
                 current_resident = row[1]
@@ -28,16 +28,16 @@ def parse_csv(file_path, routes_person, routes_comp):
                         routes_person[current_resident].append(RouteStep(block_id, rating))
 
                         # Populate compilations
-                        if not routes_comp.has_key(block_id):
+                        if not block_id in routes_comp:
                             routes_comp[block_id] = []
                         routes_comp[block_id].append(rating)
 
 def fill_in_route_steps(routes, person_folder, person, coordinates_dict):
     """Fill in the route steps"""
     ratings_dict = {
-        1 : create_rating_folder(person_folder, 1),
-        2 : create_rating_folder(person_folder, 2),
-        3 : create_rating_folder(person_folder, 3)
+        1: create_rating_folder(person_folder, 1),
+        2: create_rating_folder(person_folder, 2),
+        3: create_rating_folder(person_folder, 3)
     }
 
     for route_step in routes[person]:
@@ -52,14 +52,15 @@ def fill_in_route_steps(routes, person_folder, person, coordinates_dict):
         append_node_with_text(line_string, "tessellate", "1")
         coordinates = etree.SubElement(line_string, "coordinates")
 
-        if coordinates_dict.has_key(route_step.block_id):
+        if route_step.block_id in coordinates_dict:
             coordinates.text = coordinates_dict[route_step.block_id]
         else:
             print("Unknown streetblock2: \"" + route_step.block_id + "\"")
 
     # Remove ratings folders with no placemarks
     for rating in ratings_dict.keys():
-        if len(ratings_dict[rating]) <= 1: person_folder.remove(ratings_dict[rating])
+        if len(ratings_dict[rating]) <= 1:
+            person_folder.remove(ratings_dict[rating])
 
 #  Read in street block mappings
 print("Reading street blocks ... ", end="")
@@ -108,11 +109,11 @@ for person in walkingRoutesPerson.keys():
     fill_in_route_steps(walkingRoutesPerson, walkingFolderPerson, person, coordinates_dict)
     fill_in_route_steps(bikingRoutesPerson, bikingFolderPerson, person, coordinates_dict)
 
-def populate_compulations(routesComp, rootFolder):
-    for block_id in routesComp.keys():
-        rating = max(routesComp[block_id])
+def populate_compulations(routes_comp, root_folder):
+    for block_id in routes_comp.keys():
+        rating = max(routes_comp[block_id])
 
-        placemark = create_node(rootFolder, "Placemark", block_id)
+        placemark = create_node(root_folder, "Placemark", block_id)
         append_node_with_text(placemark, "visibility", "0")
         append_node_with_text(placemark, "styleUrl", "#" + str(rating) + "StyleMap")
 
@@ -120,7 +121,7 @@ def populate_compulations(routesComp, rootFolder):
         append_node_with_text(line_string, "tessellate", "1")
         coordinates = etree.SubElement(line_string, "coordinates")
 
-        if coordinates_dict.has_key(block_id):
+        if block_id in coordinates_dict:
             coordinates.text = coordinates_dict[block_id]
         else:
             print("Unknown streetblock: \"" + block_id + "\"")
