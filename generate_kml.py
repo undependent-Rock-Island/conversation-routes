@@ -3,7 +3,7 @@
 from __future__ import print_function
 import csv
 from lxml import etree
-from RouteEntities import *
+from RouteEntities import RouteStep
 from xml_utils import *
 
 def parse_csv(file_path, routes_person, routes_comp):
