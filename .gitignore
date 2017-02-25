@@ -2,3 +2,5 @@ python_generated.kml
 .vscode/
 tags
 *.pyc
+*.kmz
+trigger_lines.*
