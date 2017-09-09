@@ -2,29 +2,35 @@
 
 import math
 
+def populate_lines(coordinates):
+    """Populate lines list from text coordinates"""
+    points = []
+
+    for item in coordinates.split():
+        values = item.split(',')
+        points.append(Point(float(values[0]), float(values[1])))
+
+    for i in range(0, len(points) - 1):
+        yield Line(points[i], points[i+1])
+
 class RouteStep(object):
     """One block step along a route."""
     def __init__(self, block_id, rating):
         self.block_id = block_id
         self.rating = rating
 
+class ConversationRoute(object):
+    """A route that was mentioned during a conversation."""
+    def __init__(self, rating, coordinates):
+        self.lines = list(populate_lines(coordinates))
+        self.rating = rating
+
 class StreetBlock(object):
     """A street block in Rock Island."""
     def __init__(self, name, coordinates):
         self.name = name
-        self.lines = list(self.populate_lines(coordinates))
+        self.lines = list(populate_lines(coordinates))
         self.trigger_lines = []
-
-    def populate_lines(self, coordinates):
-        """Populate lines list from text coordinates"""
-        points = []
-
-        for item in coordinates.split():
-            values = item.split(',')
-            points.append(Point(float(values[0]), float(values[1])))
-
-        for i in range(0, len(points) - 1):
-            yield Line(points[i], points[i+1])
 
     def populate_trigger_lines(self, distance):
         """Populate trigger lines for this street block"""

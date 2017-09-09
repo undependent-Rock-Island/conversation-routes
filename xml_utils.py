@@ -1,5 +1,5 @@
 from lxml import etree
-from RouteEntities import StreetBlock
+from RouteEntities import StreetBlock, ConversationRoute
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -7,6 +7,7 @@ def chunks(l, n):
         yield l[i:i + n]
 
 def get_kml_namespace():
+    """Returns standard KML namespaces"""
     return {'kml': 'http://www.opengis.net/kml/2.2',
             'gx' : 'http://www.google.com/kml/ext/2.2'}
 
@@ -20,6 +21,37 @@ def read_street_blocks(document_path):
 
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
         yield StreetBlock(placemark[0].text, placemark[3][1].text.strip())
+
+def read_conversation_route(document_path):
+    """Read in conversation routes from KML document"""
+    doc = etree.parse(document_path)
+    namespace = get_kml_namespace()
+
+    # Cache style -> color maps
+    style_dict = {}
+    for style in doc.xpath('//kml:Style', namespaces=namespace):
+        style_dict['#' + style.attrib['id']] = style[0][0].text
+
+    # Cache the style maps
+    style_map_dict = {}
+    for style_map in doc.xpath('//kml:StyleMap', namespaces=namespace):
+        style_url = style_map[0].xpath('.//kml:styleUrl', namespaces=namespace)
+        style_map_dict['#' + style_map.attrib['id']] = style_dict[style_url[0].text]
+
+    for placemark in doc.xpath('//kml:Placemark', namespaces=namespace):
+        style_url = placemark.xpath('.//kml:styleUrl', namespaces=namespace)
+        coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
+        color = style_map_dict[style_url[0].text]
+
+        rating = 0
+
+        if color == 'ff00ff55': # Green
+            rating = 1
+        elif color == 'ff00ffff': # Yellow
+            rating = 2
+
+        if coordinates != []:
+            yield ConversationRoute(rating, coordinates[0].text.strip())
 
 def append_node_with_text(parent, tagName, text):
     node = etree.SubElement(parent, tagName)
