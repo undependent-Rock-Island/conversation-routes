@@ -19,10 +19,16 @@ class RouteStep(object):
         self.block_id = block_id
         self.rating = rating
 
+class Conversation(object):
+    """A conversation with a resident"""
+    def __init__(self, residentName, routes):
+        self.residentName = residentName
+        self.routes = routes
+    
 class ConversationRoute(object):
     """A route that was mentioned during a conversation."""
-    def __init__(self, rating, coordinates):
-        self.lines = list(populate_lines(coordinates))
+    def __init__(self, rating, street_blocks):
+        self.street_blocks = street_blocks
         self.rating = rating
 
 class StreetBlock(object):

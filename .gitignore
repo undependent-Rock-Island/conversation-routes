@@ -4,3 +4,5 @@ tags
 *.pyc
 *.kmz
 trigger_lines.*
+/.vs/conversation-routes/v15/.suo
+/.vs

@@ -1,5 +1,5 @@
 from lxml import etree
-from RouteEntities import StreetBlock, ConversationRoute
+from RouteEntities import StreetBlock, Conversation, ConversationRoute, populate_lines
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -22,7 +22,7 @@ def read_street_blocks(document_path):
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
         yield StreetBlock(placemark[0].text, placemark[3][1].text.strip())
 
-def read_conversation_route(document_path):
+def read_conversations(document_path, street_blocks):
     """Read in conversation routes from KML document"""
     doc = etree.parse(document_path)
     namespace = get_kml_namespace()
@@ -38,21 +38,58 @@ def read_conversation_route(document_path):
         style_url = style_map[0].xpath('.//kml:styleUrl', namespaces=namespace)
         style_map_dict['#' + style_map.attrib['id']] = style_dict[style_url[0].text]
 
-    for placemark in doc.xpath('//kml:Placemark', namespaces=namespace):
+    folder = doc.xpath("//kml:Folder", namespaces=namespace)[0]
+    subFolders = folder.xpath("./kml:Folder", namespaces=namespace)
+
+    for subFolder in subFolders:
+        yield Conversation(subFolder[0].text, list(read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks)))
+
+def read_conversation_routes(folder, namespace, style_map_dict, street_blocks):
+    for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
         style_url = placemark.xpath('.//kml:styleUrl', namespaces=namespace)
         coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
         color = style_map_dict[style_url[0].text]
 
-        rating = 0
-
+        rating = -1
+        #ff12ff0a for green?
         if color == 'ff00ff55': # Green
-            rating = 1
+            rating = 3
         elif color == 'ff00ffff': # Yellow
             rating = 2
+        elif color == 'ff0000ff': # Red
+            rating = 1
 
         if coordinates != []:
-            yield ConversationRoute(rating, coordinates[0].text.strip())
+            lines = list(populate_lines(coordinates[0].text.strip()))
+            yield ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines))
 
+def find_overlapping_streetblocks(street_blocks, path_measure_lines):
+    blocks = []
+
+    for block in street_blocks:
+        if is_block_overlapping(block, path_measure_lines):
+            blocks.append(block)
+
+    return blocks;
+
+def is_block_overlapping(block, path_measure_lines):
+    for trigger_line in block.trigger_lines:
+            for path_measure_line in path_measure_lines:
+                if lines_cross(trigger_line, path_measure_line):
+                    return True
+
+    return False
+
+def ccw(A,B,C):
+    return (C.latitude-A.latitude) * (B.longitude-A.longitude) > (B.latitude-A.latitude) * (C.longitude-A.longitude)
+
+# Return true if line segments AB and CD intersect
+def intersect(A,B,C,D):
+    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+
+def lines_cross(a, b):
+    return intersect(a.point1, a.point2, b.point1, b.point2)
+    
 def append_node_with_text(parent, tagName, text):
     node = etree.SubElement(parent, tagName)
     node.text = text

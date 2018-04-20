@@ -15,8 +15,10 @@ for block in __street_blocks__:
 write_trigger_lines_kml('trigger_lines.kml', __street_blocks__)
 print('Trigger lines written.')
 
-# Read in paths and color
-__17_tanner__ = list(xu.read_conversation_route('17_tanner.kml'))
+# Read in paths and color (i.e. rating)
+__all_conversations__ = list(xu.read_conversations('hdRESIDENTS.kml', __street_blocks__))
 
-for route in __17_tanner__:
-    print(route.rating)
+#Write out resident street blocks and compilations
+print('hi')
+#for route in __17_tanner__:
+#    print(route.rating)
