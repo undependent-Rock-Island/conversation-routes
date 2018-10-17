@@ -6,3 +6,4 @@ tags
 trigger_lines.*
 /.vs/conversation-routes/v15/.suo
 /.vs
+/final_output.kml

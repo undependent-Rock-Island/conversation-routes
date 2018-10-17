@@ -1,5 +1,9 @@
 from lxml import etree
-from RouteEntities import StreetBlock, Conversation, ConversationRoute, populate_lines
+from RouteEntities import StreetBlock, Conversation, ConversationRoute, Color, populate_lines
+
+color_3 = Color(255, 85, 255, 0) # 'ff00ff55'
+color_2 = Color(255, 255, 255, 0) # 'ff00ffff'
+color_1 = Color(255, 255, 0, 0) # 'ff0000ff'
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -52,11 +56,11 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks):
 
         rating = -1
         #ff12ff0a for green?
-        if color == 'ff00ff55': # Green
+        if color == str(color_3): # Green
             rating = 3
-        elif color == 'ff00ffff': # Yellow
+        elif color == str(color_2): # Yellow
             rating = 2
-        elif color == 'ff0000ff': # Red
+        elif color == str(color_1): # Red
             rating = 1
 
         if coordinates != []:
@@ -149,3 +153,83 @@ def write_trigger_lines_kml(output_path, street_blocks):
         generated_kml.write('<?xml version="1.0" encoding="UTF-8"?>' '\n')
         generated_kml.write(etree.tounicode(kml, pretty_print=True))
         generated_kml.close()
+
+def write_final_kml(output_path, conversations):
+    """Create the final KML output file"""
+    kml = etree.Element('kml', nsmap=get_kml_namespace())
+    document = create_node(kml, "Document", "Final Python Output")
+    residents = create_folder(document, "Residents")
+    compilations = create_folder(document, "Compilations")
+
+    # Add styles
+    append_line_style(document, "purple", "FFFF01EA", 2)
+    append_line_style(document, "color_3", str(color_3), 2)
+    append_line_style(document, "color_2", str(color_2), 2)
+    append_line_style(document, "color_1", str(color_1), 2)
+    append_line_style(document, "highlight", "ffaaaaaa", 2)
+    append_style_map(document, "Color3", "color_3", "highlight")
+    append_style_map(document, "Color2", "color_2", "highlight")
+    append_style_map(document, "Color1", "color_1", "highlight")
+    append_style_map(document, "Color-1", "purple", "highlight")
+
+    color_dict = {}
+
+    color_dict[3.0] = "Color3"
+    color_dict[2.0] = "Color2"
+    color_dict[1.0] = "Color1"
+    color_dict[-1.0] = "Color-1"
+
+    for conversation in conversations:
+        resident = create_folder(residents, conversation.residentName)
+        for route in conversation.routes:
+            for block in route.street_blocks:
+                for line in block.lines:
+                    create_placemark(resident, block.name, line, "Color" + str(route.rating))
+
+    rating_sum = {}
+    rating_count = {}
+
+    for conversation in conversations:
+        for route in conversation.routes:
+            if route.rating < 0:
+                continue
+
+            for block in route.street_blocks:
+                if block in rating_sum:
+                    rating_sum[block] += route.rating
+                else:
+                    rating_sum[block] = route.rating
+
+                if block in rating_count:
+                    rating_count[block] += 1
+                else:
+                    rating_count[block] = 1
+
+    for block in rating_sum.keys():
+        rating = rating_sum[block] / rating_count[block]
+        color = get_color_string(rating)
+
+        if color not in color_dict:
+            append_line_style(document, "color_" + color, color, 2)
+            append_style_map(document, "Color-" + color, "color_" + color, "highlight")
+            color_dict[color] = "Color-" + color
+
+        for line in block.lines:
+            create_placemark(compilations, block.name, line, color_dict[color])
+
+    with open(output_path, 'w') as generated_kml:
+        generated_kml.write('<?xml version="1.0" encoding="UTF-8"?>' '\n')
+        generated_kml.write(etree.tounicode(kml, pretty_print=True))
+        generated_kml.close()
+
+def get_color_string(rating):
+    """Convert a rating floating point value to a color string"""
+    if rating == 1.0: return str(color_1)
+    if rating == 2.0: return str(color_2)
+    if rating == 3.0: return str(color_3)
+
+    if rating < 2.0:
+        return str(color_1.merge_color(color_2, rating - 1.0))
+
+    if rating < 3.0:
+        return str(color_1.merge_color(color_2, rating - 2.0))

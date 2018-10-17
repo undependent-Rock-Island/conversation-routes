@@ -13,6 +13,23 @@ def populate_lines(coordinates):
     for i in range(0, len(points) - 1):
         yield Line(points[i], points[i+1])
 
+class Color(object):
+    """Represent a color."""
+    def __init__(self, a, r, g, b):
+        self.a = a
+        self.r = r
+        self.g = g
+        self.b = b
+
+    def __str__(self):
+        # aabbggrr
+        return '{0:02x}{1:02x}{2:02x}{3:02x}'.format(self.a, self.b, self.g, self.r)
+    
+    def merge_color(self, other, percent_other):
+        lower_factor = 1.0 - percent_other;
+        upper_factor = percent_other;
+        return Color(int(self.a * lower_factor + other.a * upper_factor), int(self.r * lower_factor + other.r * upper_factor), int(self.g * lower_factor + other.g * upper_factor), int(self.b * lower_factor + other.b * upper_factor))
+
 class RouteStep(object):
     """One block step along a route."""
     def __init__(self, block_id, rating):
