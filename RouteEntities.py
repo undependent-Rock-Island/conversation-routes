@@ -30,6 +30,12 @@ class Color(object):
         upper_factor = percent_other;
         return Color(int(self.a * lower_factor + other.a * upper_factor), int(self.r * lower_factor + other.r * upper_factor), int(self.g * lower_factor + other.g * upper_factor), int(self.b * lower_factor + other.b * upper_factor))
 
+class PassThroughFolder(object):
+    """A folder that should be passed from input directly to output"""
+    def __init__(self, folder_root, styles):
+        self.folder_root = folder_root
+        self.styles = styles
+
 class RouteStep(object):
     """One block step along a route."""
     def __init__(self, block_id, rating):
@@ -38,9 +44,16 @@ class RouteStep(object):
 
 class Conversation(object):
     """A conversation with a resident"""
-    def __init__(self, residentName, routes):
+    def __init__(self, residentName, route_groups, pass_through_nodes):
         self.residentName = residentName
+        self.route_groups = route_groups
+        self.pass_through_nodes = pass_through_nodes
+
+class ConversationFolder(object):
+    """A known folder within a conversation"""
+    def __init__(self, routes, nontraditional):
         self.routes = routes
+        self.nontraditional = nontraditional
     
 class ConversationRoute(object):
     """A route that was mentioned during a conversation."""

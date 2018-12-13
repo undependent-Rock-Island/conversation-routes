@@ -1,9 +1,12 @@
 from lxml import etree
-from RouteEntities import StreetBlock, Conversation, ConversationRoute, Color, populate_lines
+from RouteEntities import StreetBlock, PassThroughFolder, Conversation, ConversationFolder, ConversationRoute, Color, populate_lines
 
-color_3 = Color(255, 85, 255, 0) # 'ff00ff55'
-color_2 = Color(255, 255, 255, 0) # 'ff00ffff'
-color_1 = Color(255, 255, 0, 0) # 'ff0000ff'
+color_3 = Color(255, 0, 255, 0) # 'ff00ff00' Green
+color_2 = Color(255, 255, 255, 0) # 'ff00ffff' Yellow
+color_1 = Color(255, 255, 0, 0) # 'ff0000ff' Red
+color_non_trad = Color(255, 255, 0, 255) # Purple
+walking_folder_name = "Walking"
+biking_folder_name = "Biking"
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -26,7 +29,16 @@ def read_street_blocks(document_path):
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
         yield StreetBlock(placemark[0].text, placemark[3][1].text.strip())
 
-def read_conversations(document_path, street_blocks):
+def create_pass_through_folder(folder_root, style_nodes_dict, namespace):
+    style_urls = folder_root.xpath('.//kml:styleUrl', namespaces=namespace)
+    styles = []
+    
+    for url in style_urls:
+        styles.extend(style_nodes_dict[url.text])
+
+    return PassThroughFolder(folder_root, styles)
+
+def read_conversations(document_path, folder_name, street_blocks):
     """Read in conversation routes from KML document"""
     doc = etree.parse(document_path)
     namespace = get_kml_namespace()
@@ -34,38 +46,63 @@ def read_conversations(document_path, street_blocks):
     # Cache style -> color maps
     style_dict = {}
     for style in doc.xpath('//kml:Style', namespaces=namespace):
-        style_dict['#' + style.attrib['id']] = style[0][0].text
+        style_dict['#' + style.attrib['id']] = style
 
     # Cache the style maps
     style_map_dict = {}
+    style_nodes_dict = {}
     for style_map in doc.xpath('//kml:StyleMap', namespaces=namespace):
-        style_url = style_map[0].xpath('.//kml:styleUrl', namespaces=namespace)
+        style_url = style_map.xpath('.//kml:styleUrl', namespaces=namespace)
         style_map_dict['#' + style_map.attrib['id']] = style_dict[style_url[0].text]
+        
+        # Add all needed nodes for this style map
+        style_nodes_dict['#' + style_map.attrib['id']] = [style_map, style_dict[style_url[0].text], style_dict[style_url[1].text]]
 
-    folder = doc.xpath("//kml:Folder", namespaces=namespace)[0]
-    subFolders = folder.xpath("./kml:Folder", namespaces=namespace)
+    folder = doc.xpath("//kml:Folder[./kml:name[text()='" + folder_name + "']]", namespaces=namespace)[0]
+    residentFolders = folder.xpath("./kml:Folder", namespaces=namespace)
 
-    for subFolder in subFolders:
-        yield Conversation(subFolder[0].text, list(read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks)))
+    for residentFolder in residentFolders:
+        subFolder_mapping = {}
+        pass_through_nodes = []
 
-def read_conversation_routes(folder, namespace, style_map_dict, street_blocks):
+        for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
+            subFolderName = subFolder[0].text
+
+            if (subFolderName == walking_folder_name or subFolderName == biking_folder_name):
+                subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
+            else:
+                pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
+
+        yield Conversation(residentFolder[0].text, subFolder_mapping, pass_through_nodes)
+
+def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
+    routes = []
+    nontraditional = []
+    
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
         style_url = placemark.xpath('.//kml:styleUrl', namespaces=namespace)
         coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
-        color = style_map_dict[style_url[0].text]
+        color = style_map_dict[style_url[0].text][0][0].text
 
-        rating = -1
-        #ff12ff0a for green?
-        if color == str(color_3): # Green
-            rating = 3
-        elif color == str(color_2): # Yellow
-            rating = 2
-        elif color == str(color_1): # Red
-            rating = 1
+        if coordinates != []:      
+            rating = -1
+        
+            if color == str(color_3): # Green
+                rating = 3
+            elif color == str(color_2): # Yellow
+                rating = 2
+            elif color == str(color_1): # Red
+                rating = 1
+            
+            if rating > 0.0:
+                # This is a regular route
+                lines = list(populate_lines(coordinates[0].text.strip()))
+                routes.append(ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines)))
+            else:
+                # This is non traditional
+                nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
 
-        if coordinates != []:
-            lines = list(populate_lines(coordinates[0].text.strip()))
-            yield ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines))
+    return ConversationFolder(routes, nontraditional)
 
 def find_overlapping_streetblocks(street_blocks, path_measure_lines):
     blocks = []
@@ -74,7 +111,7 @@ def find_overlapping_streetblocks(street_blocks, path_measure_lines):
         if is_block_overlapping(block, path_measure_lines):
             blocks.append(block)
 
-    return blocks;
+    return blocks
 
 def is_block_overlapping(block, path_measure_lines):
     for trigger_line in block.trigger_lines:
@@ -85,7 +122,7 @@ def is_block_overlapping(block, path_measure_lines):
     return False
 
 def ccw(A,B,C):
-    return (C.latitude-A.latitude) * (B.longitude-A.longitude) > (B.latitude-A.latitude) * (C.longitude-A.longitude)
+    return (C.latitude - A.latitude) * (B.longitude - A.longitude) > (B.latitude - A.latitude) * (C.longitude - A.longitude)
 
 # Return true if line segments AB and CD intersect
 def intersect(A,B,C,D):
@@ -181,29 +218,62 @@ def write_final_kml(output_path, conversations):
 
     for conversation in conversations:
         resident = create_folder(residents, conversation.residentName)
-        for route in conversation.routes:
-            for block in route.street_blocks:
-                for line in block.lines:
-                    create_placemark(resident, block.name, line, "Color" + str(route.rating))
+
+        # Add named conversation route groups
+        for route_folder_name, route_folder in conversation.route_groups.items():
+            route_folder_node = create_folder(resident, route_folder_name)
+
+            # Create category folders
+            np = create_folder(route_folder_node, "NP")
+            hm = create_folder(route_folder_node, "HM")
+            nw = create_folder(route_folder_node, "NW")
+
+            for route in route_folder.routes:
+                for block in route.street_blocks:
+                    for line in block.lines:
+                        if route.rating == 1.0:
+                            create_placemark(nw, block.name, line, "Color" + str(route.rating))
+                        elif route.rating == 2.0:
+                            create_placemark(hm, block.name, line, "Color" + str(route.rating))
+                        elif route.rating == 3.0:
+                            create_placemark(np, block.name, line, "Color" + str(route.rating))
+                        else:
+                            print(block.name)
+
+            if route_folder.nontraditional != []:
+                nt_folder = create_folder(route_folder_node, "nontraditional")
+                for nt in route_folder.nontraditional:
+                    nt_folder.append(nt.folder_root)
+
+                    for style in nt.styles:
+                        document.append(style)
+
+        # Add extra stuff (pass through nodes)
+        for pass_through in conversation.pass_through_nodes:
+            resident.append(pass_through.folder_root)
+            
+            for style in pass_through.styles:
+                document.append(style)
 
     rating_sum = {}
     rating_count = {}
 
     for conversation in conversations:
-        for route in conversation.routes:
-            if route.rating < 0:
-                continue
+        for route_folder_name, route_folder in conversation.route_groups.items():
+            for route in route_folder.routes:
+                if route.rating < 0:
+                    continue
 
-            for block in route.street_blocks:
-                if block in rating_sum:
-                    rating_sum[block] += route.rating
-                else:
-                    rating_sum[block] = route.rating
+                for block in route.street_blocks:
+                    if block in rating_sum:
+                        rating_sum[block] += route.rating
+                    else:
+                        rating_sum[block] = route.rating
 
-                if block in rating_count:
-                    rating_count[block] += 1
-                else:
-                    rating_count[block] = 1
+                    if block in rating_count:
+                        rating_count[block] += 1
+                    else:
+                        rating_count[block] = 1
 
     for block in rating_sum.keys():
         rating = rating_sum[block] / rating_count[block]
@@ -232,4 +302,4 @@ def get_color_string(rating):
         return str(color_1.merge_color(color_2, rating - 1.0))
 
     if rating < 3.0:
-        return str(color_1.merge_color(color_2, rating - 2.0))
+        return str(color_2.merge_color(color_3, rating - 2.0))
