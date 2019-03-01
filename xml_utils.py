@@ -17,9 +17,8 @@ def get_kml_namespace():
     return {'kml': 'http://www.opengis.net/kml/2.2',
             'gx' : 'http://www.google.com/kml/ext/2.2'}
 
-def read_street_blocks(document_path):
+def read_street_blocks(doc):
     """Read in street blocks from KML document"""
-    doc = etree.parse(document_path)
     namespace = get_kml_namespace()
 
     folder = doc.xpath("//kml:Folder[./kml:name[starts-with(.,'STREETBLOCKS ')]]",
@@ -37,15 +36,15 @@ def create_pass_through_folder(folder_root, style_nodes_dict, namespace):
 
     return PassThroughFolder(folder_root, styles)
 
-def read_conversations(document_path, folder_name, street_blocks):
+def read_conversations(doc, street_blocks):
     """Read in conversation routes from KML document"""
-    doc = etree.parse(document_path)
     namespace = get_kml_namespace()
 
     # Cache style -> color maps
     style_dict = {}
     for style in doc.xpath('//kml:Style', namespaces=namespace):
-        style_dict['#' + style.attrib['id']] = style
+        if len(style.attrib) > 0:
+            style_dict['#' + style.attrib['id']] = style
 
     # Cache the style maps
     style_map_dict = {}
@@ -57,7 +56,8 @@ def read_conversations(document_path, folder_name, street_blocks):
         # Add all needed nodes for this style map
         style_nodes_dict['#' + style_map.attrib['id']] = [style_map, style_dict[style_url[0].text], style_dict[style_url[1].text]]
 
-    folder = doc.xpath("//kml:Folder[./kml:name[text()='" + folder_name + "']]", namespaces=namespace)[0]
+    folder = doc.xpath("//kml:Folder[./kml:name[starts-with(.,'hdConversations ')]]", namespaces=namespace)[0]
+
     residentFolders = folder.xpath("./kml:Folder", namespaces=namespace)
 
     for residentFolder in residentFolders:
@@ -323,10 +323,12 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                         coding_dict[block] = [route.rating]
 
     for code in rating_dict.keys():
-        code_folder = create_folder(compilations, code)
+        code_folder = create_folder(walking_folder, code)
 
-        for block in rating_dict[code]:
-            rating = rating_sum[block] / rating_count[block]
+        code_dict = rating_dict[code]
+
+        for block, ratings in rating_dict[code].items():
+            rating = calculate_rating(ratings)
             color = get_color_string(rating)
 
             if color not in color_dict:
@@ -335,9 +337,11 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                 color_dict[color] = "Color-" + color
 
             for line in block.lines:
-                create_placemark(gradient_folder, block.name, line, color_dict[color])
+                create_placemark(code_folder, block.name, line, color_dict[color])
 
-    print('Ryan')
+def calculate_rating(ratings):
+    ## RTF - Needs more complex rating function
+    return max(ratings)
 
 def create_gradient_compilation(document, compilations, conversations, color_dict):
     gradient_folder = create_folder(compilations, "Gradients")

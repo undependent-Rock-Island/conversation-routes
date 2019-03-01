@@ -1,10 +1,14 @@
 """Script to draw trigger lines for a given street blocks KML"""
 
 from __future__ import print_function
+from lxml import etree
 import xml_utils as xu
 
+# Pull in mappings.kml file
+doc = etree.parse('mappings.kml')
+
 # Read street blocks from KML file
-__street_blocks__ = list(xu.read_street_blocks('STREETBLOCKS 042318.kml'))
+__street_blocks__ = list(xu.read_street_blocks(doc))
 print('Street blocks read.')
 
 # Initialize lines on each street block
@@ -17,8 +21,7 @@ xu.write_trigger_lines_kml('trigger_lines.kml', __street_blocks__)
 print('Trigger lines KML written.')
 
 # Read in paths and color (i.e. rating)
-__all_conversations__ = list(xu.read_conversations('hdConversations 121518.kml', "hdConversations 12/15/18", __street_blocks__))
-#__all_conversations__ = list(xu.read_conversations('structure if adding this Dummy conversation.kml', "structure if adding this Dummy conversation", __street_blocks__))
+__all_conversations__ = list(xu.read_conversations(doc, __street_blocks__))
 print('Hand drawn conversations read and street blocks assigned.')
 
 #Write out resident street blocks and compilations
