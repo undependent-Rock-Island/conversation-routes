@@ -4,7 +4,6 @@ from RouteEntities import StreetBlock, PassThroughFolder, Conversation, Conversa
 color_3 = Color(255, 0, 255, 0) # 'ff00ff00' Green
 color_2 = Color(255, 255, 255, 0) # 'ff00ffff' Yellow
 color_1 = Color(255, 255, 0, 0) # 'ff0000ff' Red
-color_non_trad = Color(255, 255, 0, 255) # Purple
 walking_folder_name = "Walking"
 biking_folder_name = "Biking"
 
@@ -65,15 +64,38 @@ def read_conversations(document_path, folder_name, street_blocks):
         subFolder_mapping = {}
         pass_through_nodes = []
 
+        walking_code = get_walking_code(residentFolder, namespace)
+        biking_code = get_biking_code(residentFolder, namespace)
+
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
 
-            if (subFolderName == walking_folder_name or subFolderName == biking_folder_name):
+            if subFolderName == walking_folder_name or subFolderName == biking_folder_name:
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield Conversation(residentFolder[0].text, subFolder_mapping, pass_through_nodes)
+        yield Conversation(residentFolder[0].text, walking_code, biking_code, subFolder_mapping, pass_through_nodes)
+
+def get_walking_code(folder, namespace):
+    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
+
+    if "WTW?=NI" in description: return "NI"
+    if "WTW?=WCW" in description: return "WCW"
+    if "WTW?=WNOS" in description: return "WNOS"
+    if "WTW?=WNSSS" in description: return "WNSSS"
+
+    raise ValueError('Unknown walking code in description ' + description)
+
+def get_biking_code(folder, namespace):
+    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
+
+    if "WTB?=NI" in description: return "NI"
+    if "WTB?=WCB" in description: return "WCB"
+    if "WTB?=BNCRC" in description: return "BNCRC"
+    if "WTB?=BNAAS" in description: return "BNAAS"
+
+    raise ValueError('Unknown biking code in description ' + description)
 
 def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
     routes = []
@@ -195,7 +217,7 @@ def write_final_kml(output_path, conversations):
     """Create the final KML output file"""
     kml = etree.Element('kml', nsmap=get_kml_namespace())
     document = create_node(kml, "Document", "Final Python Output")
-    residents = create_folder(document, "Residents")
+    residents = create_folder(document, "Conversations")
     compilations = create_folder(document, "Compilations")
 
     # Add styles
@@ -216,6 +238,7 @@ def write_final_kml(output_path, conversations):
     color_dict[1.0] = "Color1"
     color_dict[-1.0] = "Color-1"
 
+    # Create one folder for each conversation
     for conversation in conversations:
         resident = create_folder(residents, conversation.residentName)
 
@@ -224,22 +247,34 @@ def write_final_kml(output_path, conversations):
             route_folder_node = create_folder(resident, route_folder_name)
 
             # Create category folders
-            np = create_folder(route_folder_node, "NP")
-            hm = create_folder(route_folder_node, "HM")
-            nw = create_folder(route_folder_node, "NW")
+            np_lines = []
+            hm_lines = []
+            nw_lines = []
 
             for route in route_folder.routes:
                 for block in route.street_blocks:
                     for line in block.lines:
                         if route.rating == 1.0:
-                            create_placemark(nw, block.name, line, "Color" + str(route.rating))
+                            #create_placemark(nw, block.name, line, "Color" +
+                            #str(route.rating))
+                            nw_lines.append([block.name, line])
                         elif route.rating == 2.0:
-                            create_placemark(hm, block.name, line, "Color" + str(route.rating))
+                            #create_placemark(hm, block.name, line, "Color" +
+                            #str(route.rating))
+                            hm_lines.append([block.name, line])
                         elif route.rating == 3.0:
-                            create_placemark(np, block.name, line, "Color" + str(route.rating))
+                            #create_placemark(np, block.name, line, "Color" +
+                            #str(route.rating))
+                            np_lines.append([block.name, line])
                         else:
                             print(block.name)
 
+            # Only populate folders with children
+            create_rating_subfolder(np_lines, route_folder_node, "NP", color_dict[3.0])
+            create_rating_subfolder(hm_lines, route_folder_node, "HM", color_dict[2.0])
+            create_rating_subfolder(nw_lines, route_folder_node, "NW", color_dict[1.0])
+
+            # Copy over nontraditional nodes and styles
             if route_folder.nontraditional != []:
                 nt_folder = create_folder(route_folder_node, "nontraditional")
                 for nt in route_folder.nontraditional:
@@ -255,6 +290,58 @@ def write_final_kml(output_path, conversations):
             for style in pass_through.styles:
                 document.append(style)
 
+    create_walking_compilation(document, compilations, conversations, color_dict)
+    create_gradient_compilation(document, compilations, conversations, color_dict)
+
+    with open(output_path, 'w') as generated_kml:
+        generated_kml.write('<?xml version="1.0" encoding="UTF-8"?>' '\n')
+        generated_kml.write(etree.tounicode(kml, pretty_print=True))
+        generated_kml.close()
+
+def create_walking_compilation(document, compilations, conversations, color_dict):
+    walking_folder = create_folder(compilations, "Walking")
+
+    rating_dict = {}
+
+    for conversation in conversations:
+
+        # Make a dictionary keyed on walking status
+        if conversation.walking_code not in rating_dict:
+            rating_dict[conversation.walking_code] = {}
+
+        coding_dict = rating_dict[conversation.walking_code]
+
+        for route_folder_name, route_folder in conversation.route_groups.items():
+            for route in route_folder.routes:
+                if route.rating < 0:
+                    continue
+
+                for block in route.street_blocks:
+                    if block in coding_dict:
+                        coding_dict[block].append(route.rating)
+                    else:
+                        coding_dict[block] = [route.rating]
+
+    for code in rating_dict.keys():
+        code_folder = create_folder(compilations, code)
+
+        for block in rating_dict[code]:
+            rating = rating_sum[block] / rating_count[block]
+            color = get_color_string(rating)
+
+            if color not in color_dict:
+                append_line_style(document, "color_" + color, color, 2)
+                append_style_map(document, "Color-" + color, "color_" + color, "highlight")
+                color_dict[color] = "Color-" + color
+
+            for line in block.lines:
+                create_placemark(gradient_folder, block.name, line, color_dict[color])
+
+    print('Ryan')
+
+def create_gradient_compilation(document, compilations, conversations, color_dict):
+    gradient_folder = create_folder(compilations, "Gradients")
+    
     rating_sum = {}
     rating_count = {}
 
@@ -285,12 +372,14 @@ def write_final_kml(output_path, conversations):
             color_dict[color] = "Color-" + color
 
         for line in block.lines:
-            create_placemark(compilations, block.name, line, color_dict[color])
+            create_placemark(gradient_folder, block.name, line, color_dict[color])
 
-    with open(output_path, 'w') as generated_kml:
-        generated_kml.write('<?xml version="1.0" encoding="UTF-8"?>' '\n')
-        generated_kml.write(etree.tounicode(kml, pretty_print=True))
-        generated_kml.close()
+def create_rating_subfolder(lines, parent_folder, folder_name, styleId):
+    if lines != []:
+        folder = create_folder(parent_folder, folder_name)
+
+        for name, line in lines:
+            create_placemark(folder, name, line, styleId)
 
 def get_color_string(rating):
     """Convert a rating floating point value to a color string"""

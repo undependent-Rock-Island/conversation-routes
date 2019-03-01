@@ -17,8 +17,8 @@ xu.write_trigger_lines_kml('trigger_lines.kml', __street_blocks__)
 print('Trigger lines KML written.')
 
 # Read in paths and color (i.e. rating)
-#__all_conversations__ = list(xu.read_conversations('hdConversations 120918.kml', "hdConversations 12/9/18", __street_blocks__))
-__all_conversations__ = list(xu.read_conversations('structure if adding this Dummy conversation.kml', "structure if adding this Dummy conversation", __street_blocks__))
+__all_conversations__ = list(xu.read_conversations('hdConversations 121518.kml', "hdConversations 12/15/18", __street_blocks__))
+#__all_conversations__ = list(xu.read_conversations('structure if adding this Dummy conversation.kml', "structure if adding this Dummy conversation", __street_blocks__))
 print('Hand drawn conversations read and street blocks assigned.')
 
 #Write out resident street blocks and compilations
@@ -26,6 +26,4 @@ xu.write_final_kml('final_output.kml', __all_conversations__)
 print('Python conversations and compilations written.')
 
 
-# TODO
- # add non trad to walking and biking
- # move styles over with the pass through nodes
+# handle hypothetical better -> street blocks
