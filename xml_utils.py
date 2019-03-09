@@ -255,16 +255,10 @@ def write_final_kml(output_path, conversations):
                 for block in route.street_blocks:
                     for line in block.lines:
                         if route.rating == 1.0:
-                            #create_placemark(nw, block.name, line, "Color" +
-                            #str(route.rating))
                             nw_lines.append([block.name, line])
                         elif route.rating == 2.0:
-                            #create_placemark(hm, block.name, line, "Color" +
-                            #str(route.rating))
                             hm_lines.append([block.name, line])
                         elif route.rating == 3.0:
-                            #create_placemark(np, block.name, line, "Color" +
-                            #str(route.rating))
                             np_lines.append([block.name, line])
                         else:
                             print(block.name)
@@ -300,21 +294,29 @@ def write_final_kml(output_path, conversations):
 
 def create_walking_compilation(document, compilations, conversations, color_dict):
     walking_folder = create_folder(compilations, "Walking")
+    biking_folder = create_folder(compilations, "Biking")
 
     rating_dict = {}
 
     for conversation in conversations:
 
-        # Make a dictionary keyed on walking status
+        # Make a dictionary keyed on walking and biking status
         if conversation.walking_code not in rating_dict:
             rating_dict[conversation.walking_code] = {}
-
-        coding_dict = rating_dict[conversation.walking_code]
+        if conversation.biking_code not in rating_dict:
+            rating_dict[conversation.biking_code] = {}
 
         for route_folder_name, route_folder in conversation.route_groups.items():
             for route in route_folder.routes:
                 if route.rating < 0:
                     continue
+
+                if route_folder_name == walking_folder_name:
+                    coding_dict = rating_dict[conversation.walking_code]
+                elif route_folder_name == biking_folder_name:
+                    coding_dict = rating_dict[conversation.biking_code]
+                else:
+                    print('Cant find folder')
 
                 for block in route.street_blocks:
                     if block in coding_dict:
@@ -323,9 +325,19 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                         coding_dict[block] = [route.rating]
 
     for code in rating_dict.keys():
-        code_folder = create_folder(walking_folder, code)
-
+        if 'B' in code:
+            code_folder = create_folder(biking_folder, code)
+        elif 'W' in code:
+            code_folder = create_folder(walking_folder, code)
+        else:
+            print('Found NI folder')
+        
         code_dict = rating_dict[code]
+
+        # Create category folders
+        np_lines = []
+        hm_lines = []
+        nw_lines = []
 
         for block, ratings in rating_dict[code].items():
             rating = calculate_rating(ratings)
@@ -337,7 +349,22 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                 color_dict[color] = "Color-" + color
 
             for line in block.lines:
-                create_placemark(code_folder, block.name, line, color_dict[color])
+                if rating == 1.0:
+                    nw_lines.append([block.name, line])
+                elif rating == 2.0:
+                    hm_lines.append([block.name, line])
+                elif rating == 3.0:
+                    np_lines.append([block.name, line])
+                else:
+                    print(block.name)
+
+        # Only populate folders with children
+        create_rating_subfolder(np_lines, code_folder, "NP", color_dict[3.0])
+        create_rating_subfolder(hm_lines, code_folder, "HM", color_dict[2.0])
+        create_rating_subfolder(nw_lines, code_folder, "NW", color_dict[1.0])
+        
+        #for line in block.lines:
+        #    create_placemark(code_folder, block.name, line, color_dict[color])
 
 def calculate_rating(ratings):
     ## RTF - Needs more complex rating function

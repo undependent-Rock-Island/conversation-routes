@@ -3,6 +3,7 @@
 from __future__ import print_function
 from lxml import etree
 import xml_utils as xu
+import datetime
 
 # Pull in mappings.kml file
 doc = etree.parse('mappings.kml')
@@ -24,8 +25,9 @@ print('Trigger lines KML written.')
 __all_conversations__ = list(xu.read_conversations(doc, __street_blocks__))
 print('Hand drawn conversations read and street blocks assigned.')
 
-#Write out resident street blocks and compilations
-xu.write_final_kml('final_output.kml', __all_conversations__)
+# Write out resident street blocks and compilations
+d = datetime.datetime.today()
+xu.write_final_kml('final_output_' + d.strftime("%d%b%Y") + '.kml', __all_conversations__)
 print('Python conversations and compilations written.')
 
 
