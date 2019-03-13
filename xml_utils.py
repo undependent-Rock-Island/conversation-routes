@@ -331,6 +331,7 @@ def create_walking_compilation(document, compilations, conversations, color_dict
             code_folder = create_folder(walking_folder, code)
         else:
             print('Found NI folder')
+            continue
         
         code_dict = rating_dict[code]
 
