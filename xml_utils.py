@@ -213,10 +213,10 @@ def write_trigger_lines_kml(output_path, street_blocks):
         generated_kml.write(etree.tounicode(kml, pretty_print=True))
         generated_kml.close()
 
-def write_final_kml(output_path, conversations):
+def write_final_kml(output_path, conversations, date):
     """Create the final KML output file"""
     kml = etree.Element('kml', nsmap=get_kml_namespace())
-    document = create_node(kml, "Document", "Final Python Output")
+    document = create_node(kml, "Document", "Final Python Output " + date.strftime("%m/%d/%Y"))
     residents = create_folder(document, "Conversations")
     compilations = create_folder(document, "Compilations")
 

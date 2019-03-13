@@ -27,7 +27,7 @@ print('Hand drawn conversations read and street blocks assigned.')
 
 # Write out resident street blocks and compilations
 d = datetime.datetime.today()
-xu.write_final_kml('final_output_' + d.strftime("%d%b%Y") + '.kml', __all_conversations__)
+xu.write_final_kml('final_output_' + d.strftime("%d%b%Y") + '.kml', __all_conversations__, d)
 print('Python conversations and compilations written.')
 
 
