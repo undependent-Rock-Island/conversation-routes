@@ -216,7 +216,7 @@ def write_trigger_lines_kml(output_path, street_blocks):
 def write_final_kml(output_path, conversations, date):
     """Create the final KML output file"""
     kml = etree.Element('kml', nsmap=get_kml_namespace())
-    document = create_node(kml, "Document", "Final Python Output " + date.strftime("%m/%d/%Y"))
+    document = create_node(kml, "Document", "Final Python Output " + date.strftime("%m/%d/%y"))
     residents = create_folder(document, "Conversations")
     compilations = create_folder(document, "Compilations")
 
@@ -341,7 +341,7 @@ def create_walking_compilation(document, compilations, conversations, color_dict
         nw_lines = []
 
         for block, ratings in rating_dict[code].items():
-            rating = calculate_rating(ratings)
+            rating = calculate_rating(ratings, code)
             color = get_color_string(rating)
 
             if color not in color_dict:
@@ -363,13 +363,42 @@ def create_walking_compilation(document, compilations, conversations, color_dict
         create_rating_subfolder(np_lines, code_folder, "NP", color_dict[3.0])
         create_rating_subfolder(hm_lines, code_folder, "HM", color_dict[2.0])
         create_rating_subfolder(nw_lines, code_folder, "NW", color_dict[1.0])
-        
+
         #for line in block.lines:
         #    create_placemark(code_folder, block.name, line, color_dict[color])
 
-def calculate_rating(ratings):
-    ## RTF - Needs more complex rating function
-    return max(ratings)
+def calculate_rating(ratings, code):
+    modes = compute_mode(ratings);
+
+    if code == "WNOS" or code == "BNCRC":
+        return max(modes)
+
+    if code == "WNSSS" or code == "BNAAS":
+        return min(modes)
+
+    if code == "WCW" or code == "WCB":
+        return max(modes)
+
+    print("Unknown code for rating: " + code)
+    return -1;
+
+def compute_mode(numbers):
+    counts = {}
+    modes = []
+    maxcount = 0
+    for number in numbers:
+        if number not in counts:
+            counts[number] = 0
+        counts[number] += 1
+        if counts[number] > maxcount:
+            maxcount = counts[number]
+
+    for number, count in counts.items():
+        if count == maxcount:
+            #print(number, count)
+            modes.append(number);
+
+    return modes
 
 def create_gradient_compilation(document, compilations, conversations, color_dict):
     gradient_folder = create_folder(compilations, "Gradients")
