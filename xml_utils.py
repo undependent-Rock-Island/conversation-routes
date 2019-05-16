@@ -7,6 +7,13 @@ color_1 = Color(255, 255, 0, 0) # 'ff0000ff' Red
 walking_folder_name = "Walking"
 biking_folder_name = "Biking"
 
+hyp_color = Color(255, 70, 100, 250) # fffa6446
+hypotheticals_folder_name = "hypotheticals"
+hypothetical_rating = 1000
+
+#  Add a Notes folder to compilation -> 2 sub folders for push pins, avoided intersections and other (white images)
+
+
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in range(0, len(l), n):
@@ -70,30 +77,40 @@ def read_conversations(doc, street_blocks):
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
 
-            if subFolderName == walking_folder_name or subFolderName == biking_folder_name:
+            if subFolderName.lower() == walking_folder_name.lower() or subFolderName.lower() == biking_folder_name.lower():
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
+            elif subFolderName.lower() == hypotheticals_folder_name.lower():
+                for subHypFolder in subFolder.xpath("./kml:Folder", namespaces=namespace):
+                    subHypFolderName = subHypFolder[0].text
+                    hyp_folder_key = get_hypothetical_folder_key(subHypFolderName)
+
+                    if subHypFolderName.lower() == walking_folder_name.lower() or subHypFolderName.lower() == biking_folder_name.lower():
+                        subFolder_mapping[hyp_folder_key] = read_conversation_routes(subHypFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
         yield Conversation(residentFolder[0].text, walking_code, biking_code, subFolder_mapping, pass_through_nodes)
 
+def get_hypothetical_folder_key(folderName):
+    return hypotheticals_folder_name + '_' + folderName.lower()
+
 def get_walking_code(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "WTW?=NI" in description: return "NI"
-    if "WTW?=WCW" in description: return "WCW"
-    if "WTW?=WNOS" in description: return "WNOS"
-    if "WTW?=WNSSS" in description: return "WNSSS"
+    if "wTW?=NI" in description: return "NI"
+    if "wTW?=wCW" in description: return "wCW"
+    if "wTW?=WNOS" in description: return "WNOS"
+    if "wTW?=WNSSS" in description: return "WNSSS"
 
     raise ValueError('Unknown walking code in description ' + description)
 
 def get_biking_code(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "WTB?=NI" in description: return "NI"
-    if "WTB?=WCB" in description: return "WCB"
-    if "WTB?=BNCRC" in description: return "BNCRC"
-    if "WTB?=BNAAS" in description: return "BNAAS"
+    if "wTB?=NI" in description: return "NI"
+    if "wTB?=wCB" in description: return "wCB"
+    if "wTB?=BNCRC" in description: return "BNCRC"
+    if "wTB?=BNAAS" in description: return "BNAAS"
 
     raise ValueError('Unknown biking code in description ' + description)
 
@@ -109,7 +126,9 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
         if coordinates != []:      
             rating = -1
         
-            if color == str(color_3): # Green
+            if color == str(hyp_color): # Hypotheticals
+                rating = hypothetical_rating
+            elif color == str(color_3): # Green
                 rating = 3
             elif color == str(color_2): # Yellow
                 rating = 2
@@ -225,10 +244,12 @@ def write_final_kml(output_path, conversations, date):
     append_line_style(document, "color_3", str(color_3), 2)
     append_line_style(document, "color_2", str(color_2), 2)
     append_line_style(document, "color_1", str(color_1), 2)
+    append_line_style(document, "color_hyp", str(hyp_color), 2)
     append_line_style(document, "highlight", "ffaaaaaa", 2)
     append_style_map(document, "Color3", "color_3", "highlight")
     append_style_map(document, "Color2", "color_2", "highlight")
     append_style_map(document, "Color1", "color_1", "highlight")
+    append_style_map(document, "ColorHyp", "color_hyp", "highlight")
     append_style_map(document, "Color-1", "purple", "highlight")
 
     color_dict = {}
@@ -236,20 +257,27 @@ def write_final_kml(output_path, conversations, date):
     color_dict[3.0] = "Color3"
     color_dict[2.0] = "Color2"
     color_dict[1.0] = "Color1"
+    color_dict[hypothetical_rating] = "ColorHyp"
     color_dict[-1.0] = "Color-1"
 
     # Create one folder for each conversation
     for conversation in conversations:
         resident = create_folder(residents, conversation.residentName)
 
+        hyp_folder = None
+
         # Add named conversation route groups
         for route_folder_name, route_folder in conversation.route_groups.items():
-            route_folder_node = create_folder(resident, route_folder_name)
+            route_folder_node = None
+            
+            if hypotheticals_folder_name not in route_folder_name:
+                route_folder_node = create_folder(resident, route_folder_name)
 
             # Create category folders
             np_lines = []
             hm_lines = []
             nw_lines = []
+            hyp_lines = []
 
             for route in route_folder.routes:
                 for block in route.street_blocks:
@@ -260,6 +288,8 @@ def write_final_kml(output_path, conversations, date):
                             hm_lines.append([block.name, line])
                         elif route.rating == 3.0:
                             np_lines.append([block.name, line])
+                        elif route.rating == hypothetical_rating:
+                            hyp_lines.append([block.name, line])
                         else:
                             print(block.name)
 
@@ -267,6 +297,20 @@ def write_final_kml(output_path, conversations, date):
             create_rating_subfolder(np_lines, route_folder_node, "NP", color_dict[3.0])
             create_rating_subfolder(hm_lines, route_folder_node, "HM", color_dict[2.0])
             create_rating_subfolder(nw_lines, route_folder_node, "NW", color_dict[1.0])
+
+            # Create correct hypothetical folder
+            if hypotheticals_folder_name in route_folder_name and hyp_lines != []:
+                if hyp_folder is None:
+                    hyp_folder = create_folder(resident, hypotheticals_folder_name)
+                
+                    hyp_folder_name = None
+
+                if walking_folder_name.lower() in route_folder_name:
+                    hyp_folder_name = walking_folder_name.lower()
+                if biking_folder_name.lower() in route_folder_name:
+                    hyp_folder_name = biking_folder_name.lower()
+
+                create_rating_subfolder(hyp_lines, hyp_folder, hyp_folder_name, color_dict[hypothetical_rating])
 
             # Copy over nontraditional nodes and styles
             if route_folder.nontraditional != []:
@@ -285,7 +329,7 @@ def write_final_kml(output_path, conversations, date):
                 document.append(style)
 
     create_walking_compilation(document, compilations, conversations, color_dict)
-    create_gradient_compilation(document, compilations, conversations, color_dict)
+    #create_gradient_compilation(document, compilations, conversations, color_dict)
 
     with open(output_path, 'w') as generated_kml:
         generated_kml.write('<?xml version="1.0" encoding="UTF-8"?>' '\n')
@@ -293,8 +337,8 @@ def write_final_kml(output_path, conversations, date):
         generated_kml.close()
 
 def create_walking_compilation(document, compilations, conversations, color_dict):
-    walking_folder = create_folder(compilations, "Walking")
-    biking_folder = create_folder(compilations, "Biking")
+    walking_folder = create_folder(compilations, walking_folder_name)
+    biking_folder = create_folder(compilations, biking_folder_name)
 
     rating_dict = {}
 
@@ -311,12 +355,16 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                 if route.rating < 0:
                     continue
 
-                if route_folder_name == walking_folder_name:
+                if route_folder_name.lower() == walking_folder_name.lower():
                     coding_dict = rating_dict[conversation.walking_code]
-                elif route_folder_name == biking_folder_name:
+                elif route_folder_name.lower() == biking_folder_name.lower():
+                    coding_dict = rating_dict[conversation.biking_code]
+                elif route_folder_name.lower() == get_hypothetical_folder_key(walking_folder_name):
+                    coding_dict = rating_dict[conversation.walking_code]
+                elif route_folder_name.lower() == get_hypothetical_folder_key(biking_folder_name):
                     coding_dict = rating_dict[conversation.biking_code]
                 else:
-                    print('Cant find folder')
+                    print('Cant find folder ' + route_folder_name)
 
                 for block in route.street_blocks:
                     if block in coding_dict:
@@ -324,7 +372,17 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                     else:
                         coding_dict[block] = [route.rating]
 
-    for code in rating_dict.keys():
+    # process codes in a custom order
+    def customSort(val):
+        if val == 'BNCRC': return 0
+        if val == 'BNAAS': return 1
+        if val == 'wCB': return 2
+        if val == 'WNOS': return 3
+        if val == 'WNSSS': return 4
+        if val == 'wCw': return 5
+        return 100
+
+    for code in sorted(rating_dict.keys(), key = customSort):
         if 'B' in code:
             code_folder = create_folder(biking_folder, code)
         elif 'W' in code:
@@ -339,6 +397,7 @@ def create_walking_compilation(document, compilations, conversations, color_dict
         np_lines = []
         hm_lines = []
         nw_lines = []
+        hyp_lines = []
 
         for block, ratings in rating_dict[code].items():
             rating = calculate_rating(ratings, code)
@@ -356,6 +415,8 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                     hm_lines.append([block.name, line])
                 elif rating == 3.0:
                     np_lines.append([block.name, line])
+                elif rating == hypothetical_rating:
+                    hyp_lines.append([block.name, line])
                 else:
                     print(block.name)
 
@@ -364,11 +425,12 @@ def create_walking_compilation(document, compilations, conversations, color_dict
         create_rating_subfolder(hm_lines, code_folder, "HM", color_dict[2.0])
         create_rating_subfolder(nw_lines, code_folder, "NW", color_dict[1.0])
 
-        #for line in block.lines:
-        #    create_placemark(code_folder, block.name, line, color_dict[color])
+        # Populate Hypothetical street blocks
+        for name, line in hyp_lines:
+            create_placemark(code_folder, name, line, color_dict[color])
 
 def calculate_rating(ratings, code):
-    modes = compute_mode(ratings);
+    modes = compute_mode(ratings)
 
     if code == "WNOS" or code == "BNCRC":
         return max(modes)
@@ -376,11 +438,11 @@ def calculate_rating(ratings, code):
     if code == "WNSSS" or code == "BNAAS":
         return min(modes)
 
-    if code == "WCW" or code == "WCB":
+    if code == "wCW" or code == "wCB":
         return max(modes)
 
     print("Unknown code for rating: " + code)
-    return -1;
+    return -1
 
 def compute_mode(numbers):
     counts = {}
@@ -396,7 +458,7 @@ def compute_mode(numbers):
     for number, count in counts.items():
         if count == maxcount:
             #print(number, count)
-            modes.append(number);
+            modes.append(number)
 
     return modes
 
@@ -447,6 +509,7 @@ def get_color_string(rating):
     if rating == 1.0: return str(color_1)
     if rating == 2.0: return str(color_2)
     if rating == 3.0: return str(color_3)
+    if rating == hypothetical_rating: return str(hyp_color)
 
     if rating < 2.0:
         return str(color_1.merge_color(color_2, rating - 1.0))
