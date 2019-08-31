@@ -44,16 +44,21 @@ class RouteStep(object):
 
 class Conversation(object):
     """A conversation with a resident"""
-    def __init__(self, residentName, walking_code, biking_code, route_groups, pass_through_nodes):
+    def __init__(self, residentName, conversation_folders, pass_through_nodes):
         self.residentName = residentName
-        self.walking_code = walking_code
-        self.biking_code = biking_code
-        self.route_groups = route_groups
+        self.conversation_folders = conversation_folders # e.g. Walking, Biking
         self.pass_through_nodes = pass_through_nodes
 
 class ConversationFolder(object):
     """A known folder within a conversation"""
-    def __init__(self, routes, nontraditional):
+    def __init__(self, name, coded_folders):
+        self.name = name
+        self.coded_folders = coded_folders
+
+class ConversationCodedFolder(object):
+    """A folder under a known folder that has a meaningful code"""
+    def __init__(self, code, routes, nontraditional):
+        self.code = code
         self.routes = routes
         self.nontraditional = nontraditional
     

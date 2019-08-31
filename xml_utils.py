@@ -1,15 +1,18 @@
 from lxml import etree
-from RouteEntities import StreetBlock, PassThroughFolder, Conversation, ConversationFolder, ConversationRoute, Color, populate_lines
+from RouteEntities import StreetBlock, PassThroughFolder, Conversation, ConversationFolder, ConversationCodedFolder, ConversationRoute, Color, populate_lines
 
 color_3 = Color(255, 0, 255, 0) # 'ff00ff00' Green
 color_2 = Color(255, 255, 255, 0) # 'ff00ffff' Yellow
 color_1 = Color(255, 255, 0, 0) # 'ff0000ff' Red
+hyp_color = Color(255, 70, 100, 250) # fffa6446
+non_traditional_color = Color(255, 255, 0, 255)
+would_consider_color = Color(255, 70, 100, 250)
+
 walking_folder_name = "Walking"
 biking_folder_name = "Biking"
-
-hyp_color = Color(255, 70, 100, 250) # fffa6446
-hypotheticals_folder_name = "hypotheticals"
+hypotheticals_folder_name = "wConsider ..."
 hypothetical_rating = 1000
+would_consider_rating = 2000
 
 #  Add a Notes folder to compilation -> 2 sub folders for push pins, avoided intersections and other (white images)
 
@@ -68,82 +71,84 @@ def read_conversations(doc, street_blocks):
     residentFolders = folder.xpath("./kml:Folder", namespaces=namespace)
 
     for residentFolder in residentFolders:
+        print(' Reading conversation ' + residentFolder[0].text)
         subFolder_mapping = {}
         pass_through_nodes = []
 
-        walking_code = get_walking_code(residentFolder, namespace)
-        biking_code = get_biking_code(residentFolder, namespace)
+        #walking_code = get_walking_code(residentFolder, namespace)
+        #biking_code = get_biking_code(residentFolder, namespace)
 
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
 
-            if subFolderName.lower() == walking_folder_name.lower() or subFolderName.lower() == biking_folder_name.lower():
+            if subFolderName.lower() == walking_folder_name.lower() or \
+               subFolderName.lower() == biking_folder_name.lower() or \
+               subFolderName.lower() == hypotheticals_folder_name.lower():
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
-            elif subFolderName.lower() == hypotheticals_folder_name.lower():
-                for subHypFolder in subFolder.xpath("./kml:Folder", namespaces=namespace):
-                    subHypFolderName = subHypFolder[0].text
-                    hyp_folder_key = get_hypothetical_folder_key(subHypFolderName)
+            #elif subFolderName.lower() == hypotheticals_folder_name.lower():
+                #for subHypFolder in subFolder.xpath("./kml:Folder", namespaces=namespace):
+                #    subHypFolderName = subHypFolder[0].text
+                #    hyp_folder_key = get_hypothetical_folder_key(subHypFolderName)
 
-                    if subHypFolderName.lower() == walking_folder_name.lower() or subHypFolderName.lower() == biking_folder_name.lower():
-                        subFolder_mapping[hyp_folder_key] = read_conversation_routes(subHypFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
+                #    if subHypFolderName.lower() == walking_folder_name.lower() or subHypFolderName.lower() == biking_folder_name.lower():
+                #        subFolder_mapping[hyp_folder_key] = read_conversation_routes(subHypFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield Conversation(residentFolder[0].text, walking_code, biking_code, subFolder_mapping, pass_through_nodes)
-
-def get_hypothetical_folder_key(folderName):
-    return hypotheticals_folder_name + '_' + folderName.lower()
+        yield Conversation(residentFolder[0].text, subFolder_mapping, pass_through_nodes)
 
 def get_walking_code(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "wTW?=NI" in description: return "NI"
-    if "wTW?=wCW" in description: return "wCW"
-    if "wTW?=WNOS" in description: return "WNOS"
-    if "wTW?=WNSSS" in description: return "WNSSS"
+    if "WGTD?=N" in description: return "NI"
+    if "WGTD?=Y" in description: return "wCW"
+    if "eWN?=WNOS" in description: return "WNOS"
+    if "eWN?=WNSSS" in description: return "WNSSS"
 
     raise ValueError('Unknown walking code in description ' + description)
-
 def get_biking_code(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "wTB?=NI" in description: return "NI"
-    if "wTB?=wCB" in description: return "wCB"
-    if "wTB?=BNCRC" in description: return "BNCRC"
-    if "wTB?=BNAAS" in description: return "BNAAS"
+    if "BGTD?=N" in description: return "NI"
+    if "BGTD?=Y" in description: return "wCB"
+    if "eBN?=BNCRC" in description: return "BNCRC"
+    if "eBN?=BNAAS" in description: return "BNAAS"
 
     raise ValueError('Unknown biking code in description ' + description)
 
 def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
-    routes = []
-    nontraditional = []
+    coded_folders = []
     
-    for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
-        style_url = placemark.xpath('.//kml:styleUrl', namespaces=namespace)
-        coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
-        color = style_map_dict[style_url[0].text][0][0].text
+    for subFolder in folder.xpath("./kml:Folder", namespaces=namespace):
+        code = subFolder[0].text
 
-        if coordinates != []:      
-            rating = -1
+        folders = []
+        nontraditional = []
+    
+        for placemark in subFolder.xpath('.//kml:Placemark', namespaces=namespace):
+            style_url = placemark.xpath('.//kml:styleUrl', namespaces=namespace)
+            coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
+            color = style_map_dict[style_url[0].text][0][0].text
+
+            if coordinates != []:      
+                rating = -1
         
-            if color == str(hyp_color): # Hypotheticals
-                rating = hypothetical_rating
-            elif color == str(color_3): # Green
-                rating = 3
-            elif color == str(color_2): # Yellow
-                rating = 2
-            elif color == str(color_1): # Red
-                rating = 1
-            
-            if rating > 0.0:
-                # This is a regular route
-                lines = list(populate_lines(coordinates[0].text.strip()))
-                routes.append(ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines)))
-            else:
-                # This is non traditional
-                nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
+                if color == str(non_traditional_color):
+                    nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
+                else:
+                    if color == str(hyp_color): rating = hypothetical_rating
+                    elif color == str(would_consider_color): rating = would_consider_rating;
+                    elif color == str(color_3): rating = 3 # Green
+                    elif color == str(color_2): rating = 2 # Yellow
+                    elif color == str(color_1): rating = 1 # Red
+                    else: print('WARN: Unknown color ' + color + ' in ' + folder[0].text + '/' + code + '. Skipping ...')
 
-    return ConversationFolder(routes, nontraditional)
+                    lines = list(populate_lines(coordinates[0].text.strip()))
+                    folders.append(ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines)))
+
+        coded_folders.append(ConversationCodedFolder(code, folders, nontraditional))
+
+    return ConversationFolder(folder[0].text, coded_folders)
 
 def find_overlapping_streetblocks(street_blocks, path_measure_lines):
     blocks = []
