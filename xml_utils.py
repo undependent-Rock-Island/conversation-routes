@@ -14,9 +14,8 @@ hypotheticals_folder_name = "wConsider ..."
 hypothetical_rating = 1000
 would_consider_rating = 2000
 
-#  Add a Notes folder to compilation -> 2 sub folders for push pins, avoided intersections and other (white images)
-
-
+#  Add a Notes folder to compilation -> 2 sub folders for push pins, avoided
+#  intersections and other (white images)
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in range(0, len(l), n):
@@ -75,8 +74,8 @@ def read_conversations(doc, street_blocks):
         subFolder_mapping = {}
         pass_through_nodes = []
 
-        #walking_code = get_walking_code(residentFolder, namespace)
-        #biking_code = get_biking_code(residentFolder, namespace)
+        walking_ability = get_walking_ability(residentFolder, namespace)
+        biking_ability = get_biking_ability(residentFolder, namespace)
 
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
@@ -86,35 +85,44 @@ def read_conversations(doc, street_blocks):
                subFolderName.lower() == hypotheticals_folder_name.lower():
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             #elif subFolderName.lower() == hypotheticals_folder_name.lower():
-                #for subHypFolder in subFolder.xpath("./kml:Folder", namespaces=namespace):
+                #for subHypFolder in subFolder.xpath("./kml:Folder",
+                #namespaces=namespace):
                 #    subHypFolderName = subHypFolder[0].text
-                #    hyp_folder_key = get_hypothetical_folder_key(subHypFolderName)
+                #    hyp_folder_key =
+                #    get_hypothetical_folder_key(subHypFolderName)
 
-                #    if subHypFolderName.lower() == walking_folder_name.lower() or subHypFolderName.lower() == biking_folder_name.lower():
-                #        subFolder_mapping[hyp_folder_key] = read_conversation_routes(subHypFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
+                #    if subHypFolderName.lower() == walking_folder_name.lower()
+                #    or subHypFolderName.lower() == biking_folder_name.lower():
+                #        subFolder_mapping[hyp_folder_key] =
+                #        read_conversation_routes(subHypFolder, namespace,
+                #        style_map_dict, street_blocks, style_nodes_dict)
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield Conversation(residentFolder[0].text, subFolder_mapping, pass_through_nodes)
+        yield Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping, pass_through_nodes)
 
-def get_walking_code(folder, namespace):
+def get_walking_ability(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "WGTD?=N" in description: return "NI"
-    if "WGTD?=Y" in description: return "wCW"
-    if "eWN?=WNOS" in description: return "WNOS"
-    if "eWN?=WNSSS" in description: return "WNSSS"
+    abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    raise ValueError('Unknown walking code in description ' + description)
-def get_biking_code(folder, namespace):
+    if "WGTD?=Y" in abilities or "GFW?=Y" in abilities: 
+        if "eWN?=WNOS" in abilities: return "WNOS"
+        if "eWN?=WNSSS" in abilities: return "WNSSS"
+
+        raise ValueError('Unknown walking code in description ' + description)
+
+    return None
+def get_biking_ability(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
 
-    if "BGTD?=N" in description: return "NI"
-    if "BGTD?=Y" in description: return "wCB"
-    if "eBN?=BNCRC" in description: return "BNCRC"
-    if "eBN?=BNAAS" in description: return "BNAAS"
+    abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    raise ValueError('Unknown biking code in description ' + description)
+    if "BGTD?=Y" in abilities or "GFBR?=Y" in abilities: 
+        if "eBN?=BNCRC" in abilities: return "BNCRC"
+        if "eBN?=BNAAS" in abilities: return "BNAAS"
+
+        raise ValueError('Unknown biking code in description ' + description)
 
 def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
     coded_folders = []
@@ -137,7 +145,7 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
                     nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
                 else:
                     if color == str(hyp_color): rating = hypothetical_rating
-                    elif color == str(would_consider_color): rating = would_consider_rating;
+                    elif color == str(would_consider_color): rating = would_consider_rating
                     elif color == str(color_3): rating = 3 # Green
                     elif color == str(color_2): rating = 2 # Yellow
                     elif color == str(color_1): rating = 1 # Red
@@ -272,59 +280,69 @@ def write_final_kml(output_path, conversations, date):
         hyp_folder = None
 
         # Add named conversation route groups
-        for route_folder_name, route_folder in conversation.route_groups.items():
+        for route_folder_name, conversation_folder in conversation.conversation_folders.items():
             route_folder_node = None
+
+            codes = {}
             
-            if hypotheticals_folder_name not in route_folder_name:
-                route_folder_node = create_folder(resident, route_folder_name)
-
-            # Create category folders
-            np_lines = []
-            hm_lines = []
-            nw_lines = []
-            hyp_lines = []
-
-            for route in route_folder.routes:
-                for block in route.street_blocks:
-                    for line in block.lines:
-                        if route.rating == 1.0:
-                            nw_lines.append([block.name, line])
-                        elif route.rating == 2.0:
-                            hm_lines.append([block.name, line])
-                        elif route.rating == 3.0:
-                            np_lines.append([block.name, line])
-                        elif route.rating == hypothetical_rating:
-                            hyp_lines.append([block.name, line])
-                        else:
-                            print(block.name)
-
-            # Only populate folders with children
-            create_rating_subfolder(np_lines, route_folder_node, "NP", color_dict[3.0])
-            create_rating_subfolder(hm_lines, route_folder_node, "HM", color_dict[2.0])
-            create_rating_subfolder(nw_lines, route_folder_node, "NW", color_dict[1.0])
-
-            # Create correct hypothetical folder
-            if hypotheticals_folder_name in route_folder_name and hyp_lines != []:
+            # Handle hypothetical differently
+            if hypotheticals_folder_name in route_folder_name:
                 if hyp_folder is None:
                     hyp_folder = create_folder(resident, hypotheticals_folder_name)
+
+                for coded_folder in conversation_folder.coded_folders:
+                    hyp_lines = []
+
+                    for route in coded_folder.routes:
+                        for block in route.street_blocks:
+                            for line in block.lines:
+                                if route.rating == hypothetical_rating:
+                                    hyp_lines.append([block.name, line])
+                                else:
+                                    print(block.name)
+
+                    create_rating_subfolder(hyp_lines, hyp_folder, coded_folder.code, color_dict[hypothetical_rating])
+
+            else:
+                for coded_folder in conversation_folder.coded_folders:
                 
-                    hyp_folder_name = None
+                    # Find correct code folder
+                    if coded_folder.code not in codes:
+                        codes[coded_folder.code] = create_folder(resident, coded_folder.code)
 
-                if walking_folder_name.lower() in route_folder_name:
-                    hyp_folder_name = walking_folder_name.lower()
-                if biking_folder_name.lower() in route_folder_name:
-                    hyp_folder_name = biking_folder_name.lower()
+                    coded_folder_node = codes[coded_folder.code]
+                    route_folder_node = create_folder(coded_folder_node, route_folder_name)
 
-                create_rating_subfolder(hyp_lines, hyp_folder, hyp_folder_name, color_dict[hypothetical_rating])
+                    # Create category folders
+                    np_lines = []
+                    hm_lines = []
+                    nw_lines = []
 
-            # Copy over nontraditional nodes and styles
-            if route_folder.nontraditional != []:
-                nt_folder = create_folder(route_folder_node, "nontraditional")
-                for nt in route_folder.nontraditional:
-                    nt_folder.append(nt.folder_root)
+                    for route in coded_folder.routes:
+                        for block in route.street_blocks:
+                            for line in block.lines:
+                                if route.rating == 1.0:
+                                    nw_lines.append([block.name, line])
+                                elif route.rating == 2.0:
+                                    hm_lines.append([block.name, line])
+                                elif route.rating == 3.0:
+                                    np_lines.append([block.name, line])
+                                else:
+                                    print(block.name)
 
-                    for style in nt.styles:
-                        document.append(style)
+                    # Only populate folders with children
+                    create_rating_subfolder(np_lines, route_folder_node, "NP", color_dict[3.0])
+                    create_rating_subfolder(hm_lines, route_folder_node, "HM", color_dict[2.0])
+                    create_rating_subfolder(nw_lines, route_folder_node, "NW", color_dict[1.0])
+
+                    # Copy over nontraditional nodes and styles
+                    if coded_folder.nontraditional != []:
+                        nt_folder = create_folder(route_folder_node, "nontraditional")
+                        for nt in coded_folder.nontraditional:
+                            nt_folder.append(nt.folder_root)
+
+                            for style in nt.styles:
+                                document.append(style)
 
         # Add extra stuff (pass through nodes)
         for pass_through in conversation.pass_through_nodes:
@@ -342,40 +360,37 @@ def write_final_kml(output_path, conversations, date):
         generated_kml.close()
 
 def create_walking_compilation(document, compilations, conversations, color_dict):
-    walking_folder = create_folder(compilations, walking_folder_name)
-    biking_folder = create_folder(compilations, biking_folder_name)
+
+    top_level_folders = {}
+
+    #walking_folder = create_folder(compilations, walking_folder_name)
+    #biking_folder = create_folder(compilations, biking_folder_name)
 
     rating_dict = {}
 
     for conversation in conversations:
+        for route_folder_name, conversation_folder in conversation.conversation_folders.items():
 
-        # Make a dictionary keyed on walking and biking status
-        if conversation.walking_code not in rating_dict:
-            rating_dict[conversation.walking_code] = {}
-        if conversation.biking_code not in rating_dict:
-            rating_dict[conversation.biking_code] = {}
+            if route_folder_name not in top_level_folders:
+                top_level_folders[route_folder_name] = create_folder(compilations, route_folder_name)
 
-        for route_folder_name, route_folder in conversation.route_groups.items():
-            for route in route_folder.routes:
-                if route.rating < 0:
-                    continue
+            top_level_folder = top_level_folders[route_folder_name]
 
-                if route_folder_name.lower() == walking_folder_name.lower():
-                    coding_dict = rating_dict[conversation.walking_code]
-                elif route_folder_name.lower() == biking_folder_name.lower():
-                    coding_dict = rating_dict[conversation.biking_code]
-                elif route_folder_name.lower() == get_hypothetical_folder_key(walking_folder_name):
-                    coding_dict = rating_dict[conversation.walking_code]
-                elif route_folder_name.lower() == get_hypothetical_folder_key(biking_folder_name):
-                    coding_dict = rating_dict[conversation.biking_code]
-                else:
-                    print('Cant find folder ' + route_folder_name)
+            for coded_folder in conversation_folder.coded_folders:
+                if coded_folder.code not in rating_dict:
+                    rating_dict[coded_folder.code] = {}
 
-                for block in route.street_blocks:
-                    if block in coding_dict:
-                        coding_dict[block].append(route.rating)
-                    else:
-                        coding_dict[block] = [route.rating]
+                for route in coded_folder.routes:
+                    if route.rating < 0:
+                        continue
+
+                    coding_dict = rating_dict[coded_folder.code]
+
+                    for block in route.street_blocks:
+                        if block in coding_dict:
+                            coding_dict[block].append(route.rating)
+                        else:
+                            coding_dict[block] = [route.rating]
 
     # process codes in a custom order
     def customSort(val):
