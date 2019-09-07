@@ -44,10 +44,10 @@ class RouteStep(object):
 
 class Conversation(object):
     """A conversation with a resident"""
-    def __init__(self, residentName, walkingAbility, bikingAbility, conversation_folders, pass_through_nodes):
+    def __init__(self, residentName, walking_ability, biking_ability, conversation_folders, pass_through_nodes):
         self.residentName = residentName
-        self.walkingAbility = walkingAbility
-        self.bikingAbility = bikingAbility
+        self.walking_ability = walking_ability
+        self.biking_ability = biking_ability
         self.conversation_folders = conversation_folders # e.g. Walking, Biking
         self.pass_through_nodes = pass_through_nodes
 

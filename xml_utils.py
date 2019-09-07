@@ -70,6 +70,9 @@ def read_conversations(doc, street_blocks):
     residentFolders = folder.xpath("./kml:Folder", namespaces=namespace)
 
     for residentFolder in residentFolders:
+
+        #if 'Dummy' not in residentFolder[0].text: continue
+
         print(' Reading conversation ' + residentFolder[0].text)
         subFolder_mapping = {}
         pass_through_nodes = []
@@ -149,7 +152,9 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
                     elif color == str(color_3): rating = 3 # Green
                     elif color == str(color_2): rating = 2 # Yellow
                     elif color == str(color_1): rating = 1 # Red
-                    else: print('WARN: Unknown color ' + color + ' in ' + folder[0].text + '/' + code + '. Skipping ...')
+                    else: 
+                        print('WARN: Unknown color ' + color + ' in ' + folder[0].text + '/' + code + '. Skipping ...')
+                        continue
 
                     lines = list(populate_lines(coordinates[0].text.strip()))
                     folders.append(ConversationRoute(rating, find_overlapping_streetblocks(street_blocks, lines)))
@@ -361,93 +366,118 @@ def write_final_kml(output_path, conversations, date):
 
 def create_walking_compilation(document, compilations, conversations, color_dict):
 
-    top_level_folders = {}
+    #top_level_folders = {}
 
-    #walking_folder = create_folder(compilations, walking_folder_name)
-    #biking_folder = create_folder(compilations, biking_folder_name)
-
-    rating_dict = {}
+    folder_dict = {}
 
     for conversation in conversations:
         for route_folder_name, conversation_folder in conversation.conversation_folders.items():
 
-            if route_folder_name not in top_level_folders:
-                top_level_folders[route_folder_name] = create_folder(compilations, route_folder_name)
+            #if route_folder_name not in top_level_folders:
+            #    top_level_folders[route_folder_name] = create_folder(compilations, route_folder_name)
 
-            top_level_folder = top_level_folders[route_folder_name]
+            #top_level_folder = top_level_folders[route_folder_name]
 
+            # Setup folder dictionary
+            if route_folder_name not in folder_dict:
+                folder_dict[route_folder_name] = {}
+
+            ability_dict = folder_dict[route_folder_name]
+
+            # Setup ability dictionary
+            if route_folder_name == walking_folder_name:
+                ability_dict_key = conversation.walking_ability
+            elif route_folder_name == biking_folder_name:
+                ability_dict_key = conversation.biking_ability
+            elif route_folder_name == hypotheticals_folder_name:
+                ability_dict_key = ''
+
+            if ability_dict_key not in ability_dict:
+                ability_dict[ability_dict_key] = {}
+            
+            coding_dict = ability_dict[ability_dict_key]
+            
             for coded_folder in conversation_folder.coded_folders:
-                if coded_folder.code not in rating_dict:
-                    rating_dict[coded_folder.code] = {}
+                if coded_folder.code not in coding_dict:
+                    coding_dict[coded_folder.code] = {}
+
+                block_dict = coding_dict[coded_folder.code]
 
                 for route in coded_folder.routes:
                     if route.rating < 0:
                         continue
 
-                    coding_dict = rating_dict[coded_folder.code]
-
                     for block in route.street_blocks:
-                        if block in coding_dict:
-                            coding_dict[block].append(route.rating)
+                        if block in block_dict:
+                            block_dict[block].append(route.rating)
                         else:
-                            coding_dict[block] = [route.rating]
+                            block_dict[block] = [route.rating]
 
     # process codes in a custom order
-    def customSort(val):
-        if val == 'BNCRC': return 0
-        if val == 'BNAAS': return 1
-        if val == 'wCB': return 2
-        if val == 'WNOS': return 3
-        if val == 'WNSSS': return 4
-        if val == 'wCw': return 5
+    def folderSort(val):
+        if val == walking_folder_name: return 0
+        if val == biking_folder_name: return 1
+        if val == hypotheticals_folder_name: return 2
         return 100
 
-    for code in sorted(rating_dict.keys(), key = customSort):
-        if 'B' in code:
-            code_folder = create_folder(biking_folder, code)
-        elif 'W' in code:
-            code_folder = create_folder(walking_folder, code)
-        else:
-            print('Found NI folder')
-            continue
+    def abilitySort(val):
+        if val[0] == 'BNCRC': return 0
+        if val[0] == 'BNAAS': return 1
+        if val[0] == 'wCB': return 2
+        if val[0] == 'WNOS': return 3
+        if val[0] == 'WNSSS': return 4
+        if val[0] == 'wCw': return 5
+        return 100
+
+    #for code in sorted(rating_dict.keys(), key = customSort):
+    for folder_name in sorted(folder_dict.keys(), key = folderSort):
+        ability_dict = folder_dict[folder_name]
+        top_level_folder = create_folder(compilations, folder_name)
+
+        for ability, code_dict in sorted(ability_dict.items(), key = abilitySort):
+            if folder_name == hypotheticals_folder_name:
+                ability_folder = top_level_folder
+            else:
+                ability_folder = create_folder(top_level_folder, ability)
+
+            for code, block_dict in code_dict.items():
+                code_folder = create_folder(ability_folder, code)
         
-        code_dict = rating_dict[code]
+                # Create category folders
+                np_lines = []
+                hm_lines = []
+                nw_lines = []
+                hyp_lines = []
+                
+                for block, ratings in block_dict.items():
+                    rating = calculate_rating(ratings, ability)
+                    color = get_color_string(rating)
 
-        # Create category folders
-        np_lines = []
-        hm_lines = []
-        nw_lines = []
-        hyp_lines = []
+                    if color not in color_dict:
+                        append_line_style(document, "color_" + color, color, 2)
+                        append_style_map(document, "Color-" + color, "color_" + color, "highlight")
+                        color_dict[color] = "Color-" + color
 
-        for block, ratings in rating_dict[code].items():
-            rating = calculate_rating(ratings, code)
-            color = get_color_string(rating)
+                    for line in block.lines:
+                        if rating == 1.0:
+                            nw_lines.append([block.name, line])
+                        elif rating == 2.0:
+                            hm_lines.append([block.name, line])
+                        elif rating == 3.0:
+                            np_lines.append([block.name, line])
+                        elif rating == hypothetical_rating:
+                            hyp_lines.append([block.name, line])
+                        else:
+                            print(block.name)
 
-            if color not in color_dict:
-                append_line_style(document, "color_" + color, color, 2)
-                append_style_map(document, "Color-" + color, "color_" + color, "highlight")
-                color_dict[color] = "Color-" + color
+                # Only populate folders with children
+                create_rating_subfolder(np_lines, code_folder, "NP", color_dict[3.0])
+                create_rating_subfolder(hm_lines, code_folder, "HM", color_dict[2.0])
+                create_rating_subfolder(nw_lines, code_folder, "NW", color_dict[1.0])
 
-            for line in block.lines:
-                if rating == 1.0:
-                    nw_lines.append([block.name, line])
-                elif rating == 2.0:
-                    hm_lines.append([block.name, line])
-                elif rating == 3.0:
-                    np_lines.append([block.name, line])
-                elif rating == hypothetical_rating:
-                    hyp_lines.append([block.name, line])
-                else:
-                    print(block.name)
-
-        # Only populate folders with children
-        create_rating_subfolder(np_lines, code_folder, "NP", color_dict[3.0])
-        create_rating_subfolder(hm_lines, code_folder, "HM", color_dict[2.0])
-        create_rating_subfolder(nw_lines, code_folder, "NW", color_dict[1.0])
-
-        # Populate Hypothetical street blocks
-        for name, line in hyp_lines:
-            create_placemark(code_folder, name, line, color_dict[color])
+                # Populate Hypothetical street blocks
+                for name, line in hyp_lines:
+                    create_placemark(code_folder, name, line, color_dict[color])
 
 def calculate_rating(ratings, code):
     modes = compute_mode(ratings)
@@ -458,7 +488,7 @@ def calculate_rating(ratings, code):
     if code == "WNSSS" or code == "BNAAS":
         return min(modes)
 
-    if code == "wCW" or code == "wCB":
+    if code == '': # hypotheticals
         return max(modes)
 
     print("Unknown code for rating: " + code)
