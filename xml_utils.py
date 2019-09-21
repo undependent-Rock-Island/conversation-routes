@@ -71,7 +71,7 @@ def read_conversations(doc, street_blocks):
 
     for residentFolder in residentFolders:
 
-        #if 'Dummy' not in residentFolder[0].text: continue
+        #if 'Ailin' not in residentFolder[0].text: continue
 
         print(' Reading conversation ' + residentFolder[0].text)
         subFolder_mapping = {}
@@ -283,13 +283,12 @@ def write_final_kml(output_path, conversations, date):
         resident = create_folder(residents, conversation.residentName)
 
         hyp_folder = None
+        codes = {}
 
         # Add named conversation route groups
         for route_folder_name, conversation_folder in conversation.conversation_folders.items():
             route_folder_node = None
-
-            codes = {}
-            
+           
             # Handle hypothetical differently
             if hypotheticals_folder_name in route_folder_name:
                 if hyp_folder is None:
@@ -313,10 +312,19 @@ def write_final_kml(output_path, conversations, date):
                 
                     # Find correct code folder
                     if coded_folder.code not in codes:
-                        codes[coded_folder.code] = create_folder(resident, coded_folder.code)
+                        if coded_folder.code == "GFW" or coded_folder.code == "GFBR":
+                            codes[coded_folder.code] = create_folder(resident, "on a ...")
+                        else:
+                            codes[coded_folder.code] = create_folder(resident, coded_folder.code)
 
                     coded_folder_node = codes[coded_folder.code]
-                    route_folder_node = create_folder(coded_folder_node, route_folder_name)
+                    
+                    if coded_folder.code == "GFW":
+                        route_folder_node = create_folder(coded_folder_node, "walk")
+                    elif coded_folder.code == "GFBR":
+                        route_folder_node = create_folder(coded_folder_node, "bike ride")
+                    else:
+                        route_folder_node = create_folder(coded_folder_node, route_folder_name)
 
                     # Create category folders
                     np_lines = []
