@@ -83,8 +83,8 @@ def read_conversations(doc, street_blocks):
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
 
-            if subFolderName.lower() == walking_folder_name.lower() or \
-               subFolderName.lower() == biking_folder_name.lower() or \
+            if subFolderName.lower() == "WGTD".lower() or \
+               subFolderName.lower() == "BGTD".lower() or \
                subFolderName.lower() == hypotheticals_folder_name.lower():
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             #elif subFolderName.lower() == hypotheticals_folder_name.lower():
