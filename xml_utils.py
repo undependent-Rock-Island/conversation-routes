@@ -8,8 +8,8 @@ hyp_color = Color(255, 70, 100, 250) # fffa6446
 non_traditional_color = Color(255, 255, 0, 255)
 would_consider_color = Color(255, 70, 100, 250)
 
-walking_folder_name = "Walking"
-biking_folder_name = "Biking"
+walking_folder_name = "WGTD"
+biking_folder_name = "BGTD"
 hypotheticals_folder_name = "wConsider ..."
 hypothetical_rating = 1000
 would_consider_rating = 2000
@@ -83,8 +83,8 @@ def read_conversations(doc, street_blocks):
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
 
-            if subFolderName.lower() == "WGTD".lower() or \
-               subFolderName.lower() == "BGTD".lower() or \
+            if subFolderName.lower() == walking_folder_name.lower() or \
+               subFolderName.lower() == biking_folder_name.lower() or \
                subFolderName.lower() == hypotheticals_folder_name.lower():
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict, street_blocks, style_nodes_dict)
             #elif subFolderName.lower() == hypotheticals_folder_name.lower():
