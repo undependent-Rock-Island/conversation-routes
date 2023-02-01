@@ -8,8 +8,8 @@ hyp_color = Color(255, 70, 100, 250) # fffa6446
 non_traditional_color = Color(255, 255, 0, 255)
 would_consider_color = Color(255, 70, 100, 250)
 
-walking_folder_name = "WGTD"
-biking_folder_name = "BGTD"
+walking_folder_name = "Walking"
+biking_folder_name = "Biking"
 hypotheticals_folder_name = "wConsider ..."
 hypothetical_rating = 1000
 would_consider_rating = 2000
