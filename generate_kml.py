@@ -103,8 +103,8 @@ append_style_map(document, "3StyleMap", "green", "highlight")
 for person in walkingRoutesPerson.keys():
     personFolder = create_folder(residentsFolder, person)
 
-    walkingFolderPerson = create_folder(personFolder, "WGTD")
-    bikingFolderPerson = create_folder(personFolder, "BGTD")
+    walkingFolderPerson = create_folder(personFolder, "Walking")
+    bikingFolderPerson = create_folder(personFolder, "Biking")
 
     fill_in_route_steps(walkingRoutesPerson, walkingFolderPerson, person, coordinates_dict)
     fill_in_route_steps(bikingRoutesPerson, bikingFolderPerson, person, coordinates_dict)
