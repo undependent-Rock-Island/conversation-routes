@@ -103,8 +103,8 @@ append_style_map(document, "3StyleMap", "green", "highlight")
 for person in walkingRoutesPerson.keys():
     personFolder = create_folder(residentsFolder, person)
 
-    walkingFolderPerson = create_folder(personFolder, "Walking")
-    bikingFolderPerson = create_folder(personFolder, "Biking")
+    walkingFolderPerson = create_folder(personFolder, "W")
+    bikingFolderPerson = create_folder(personFolder, "B")
 
     fill_in_route_steps(walkingRoutesPerson, walkingFolderPerson, person, coordinates_dict)
     fill_in_route_steps(bikingRoutesPerson, bikingFolderPerson, person, coordinates_dict)
@@ -127,8 +127,8 @@ def populate_compulations(routes_comp, root_folder):
             print("Unknown streetblock: \"" + block_id + "\"")
 
 # Populate compilations
-walkingFolderComp = create_folder(compilationsFolder, "W")
-bikingFolderComp = create_folder(compilationsFolder, "B")
+walkingFolderComp = create_folder(compilationsFolder, "Walking")
+bikingFolderComp = create_folder(compilationsFolder, "Biking")
 
 populate_compulations(walkingRoutesComp, walkingFolderComp)
 populate_compulations(bikingRoutesComp, bikingFolderComp)
