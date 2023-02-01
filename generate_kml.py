@@ -127,8 +127,8 @@ def populate_compulations(routes_comp, root_folder):
             print("Unknown streetblock: \"" + block_id + "\"")
 
 # Populate compilations
-walkingFolderComp = create_folder(compilationsFolder, "Walking")
-bikingFolderComp = create_folder(compilationsFolder, "Biking")
+walkingFolderComp = create_folder(compilationsFolder, "W")
+bikingFolderComp = create_folder(compilationsFolder, "B")
 
 populate_compulations(walkingRoutesComp, walkingFolderComp)
 populate_compulations(bikingRoutesComp, bikingFolderComp)
