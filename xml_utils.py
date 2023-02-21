@@ -8,9 +8,9 @@ hyp_color = Color(255, 70, 100, 250) # fffa6446
 non_traditional_color = Color(255, 255, 0, 255)
 would_consider_color = Color(255, 70, 100, 250)
 
-walking_folder_name = "Walking"
-biking_folder_name = "Biking"
-hypotheticals_folder_name = "wConsider ..."
+walking_folder_name = "W"
+biking_folder_name = "B"
+hypotheticals_folder_name = "wConsider"
 hypothetical_rating = 1000
 would_consider_rating = 2000
 
@@ -109,7 +109,7 @@ def get_walking_ability(folder, namespace):
 
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    if "WGTD?=Y" in abilities or "GFW?=Y" in abilities: 
+    if "wCWGTD?=Y" in abilities or "GFW?=Y" in abilities: 
         if "eWN?=WNOS" in abilities: return "WNOS"
         if "eWN?=WNSSS" in abilities: return "WNSSS"
 
@@ -118,10 +118,9 @@ def get_walking_ability(folder, namespace):
     return None
 def get_biking_ability(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
-
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    if "BGTD?=Y" in abilities or "GFBR?=Y" in abilities: 
+    if "wCBGTD?=Y" in abilities or "GFBR?=Y" in abilities: 
         if "eBN?=BNCRC" in abilities: return "BNCRC"
         if "eBN?=BNAAS" in abilities: return "BNAAS"
 
@@ -313,16 +312,16 @@ def write_final_kml(output_path, conversations, date):
                     # Find correct code folder
                     if coded_folder.code not in codes:
                         if coded_folder.code == "GFW" or coded_folder.code == "GFBR":
-                            codes[coded_folder.code] = create_folder(resident, "on a ...")
+                            codes[coded_folder.code] = create_folder(resident, "GF")
                         else:
                             codes[coded_folder.code] = create_folder(resident, coded_folder.code)
 
                     coded_folder_node = codes[coded_folder.code]
                     
                     if coded_folder.code == "GFW":
-                        route_folder_node = create_folder(coded_folder_node, "walk")
+                        route_folder_node = create_folder(coded_folder_node, "Walking")
                     elif coded_folder.code == "GFBR":
-                        route_folder_node = create_folder(coded_folder_node, "bike ride")
+                        route_folder_node = create_folder(coded_folder_node, "Biking")
                     else:
                         route_folder_node = create_folder(coded_folder_node, route_folder_name)
 
