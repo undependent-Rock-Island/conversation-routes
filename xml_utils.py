@@ -109,7 +109,7 @@ def get_walking_ability(folder, namespace):
 
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    if "wCWGTD?=Y" in abilities or "GFW?=Y" in abilities: 
+    if "WGTD?=Y" in abilities or "GFW?=Y" in abilities: 
         if "eWN?=WNOS" in abilities: return "WNOS"
         if "eWN?=WNSSS" in abilities: return "WNSSS"
 
@@ -120,7 +120,7 @@ def get_biking_ability(folder, namespace):
     description = folder.xpath("./kml:description", namespaces=namespace)[0].text
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
-    if "wCBGTD?=Y" in abilities or "GFBR?=Y" in abilities: 
+    if "BGTD?=Y" in abilities or "GFBR?=Y" in abilities: 
         if "eBN?=BNCRC" in abilities: return "BNCRC"
         if "eBN?=BNAAS" in abilities: return "BNAAS"
 
