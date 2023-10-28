@@ -34,7 +34,7 @@ def read_street_blocks(doc):
                        namespaces=namespace)[0]
 
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
-        yield StreetBlock(placemark[0].text, placemark[3][1].text.strip())
+        yield StreetBlock(placemark[0].text, placemark[2][1].text.strip())
 
 def create_pass_through_folder(folder_root, style_nodes_dict, namespace):
     style_urls = folder_root.xpath('.//kml:styleUrl', namespaces=namespace)
