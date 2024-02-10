@@ -22,12 +22,12 @@ xu.write_trigger_lines_kml('trigger_lines.kml', __street_blocks__)
 print('Trigger lines KML written.')
 
 # Read in paths and color (i.e. rating)
-__all_conversations__ = list(xu.read_conversations(doc, __street_blocks__))
+__all_conversation_data__ = list(xu.read_conversation_data(doc, __street_blocks__))
 print('Hand drawn conversations read and street blocks assigned.')
 
 # Write out resident street blocks and compilations
 d = datetime.datetime.today()
-xu.write_final_kml('final_output_' + d.strftime("%d%b%Y") + '.kml', __all_conversations__, d)
+xu.write_final_kml('final_output_' + d.strftime("%d%b%Y") + '.kml', __all_conversation_data__, d)
 print('Python conversations and compilations written.')
 
 

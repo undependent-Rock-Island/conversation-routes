@@ -51,6 +51,11 @@ class Conversation(object):
         self.conversation_folders = conversation_folders # e.g. Walking, Biking
         self.pass_through_nodes = pass_through_nodes
 
+class NoteBundle(object):
+    """A bundle of notes from a resident"""
+    def __init__(self, notes):
+        self.notes = notes
+
 class ConversationFolder(object):
     """A known folder within a conversation"""
     def __init__(self, name, coded_folders):

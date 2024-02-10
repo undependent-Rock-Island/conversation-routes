@@ -1,6 +1,6 @@
 from lxml import etree
 from RouteEntities import StreetBlock, PassThroughFolder, Conversation, ConversationFolder, ConversationCodedFolder, \
-    ConversationRoute, Color, populate_lines
+    ConversationRoute, Color, populate_lines, NoteBundle
 
 color_3 = Color(255, 0, 255, 0)  # 'ff00ff00' Green
 color_2 = Color(255, 255, 255, 0)  # 'ff00ffff' Yellow
@@ -11,6 +11,7 @@ would_consider_color = Color(255, 70, 100, 250)
 
 walking_folder_name = "W"
 biking_folder_name = "B"
+notes_folder_name = "Notes"
 hypotheticals_folder_name = "wConsider"
 hypothetical_rating = 1000
 would_consider_rating = 2000
@@ -38,7 +39,12 @@ def read_street_blocks(doc):
                        namespaces=namespace)[0]
 
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
-        yield StreetBlock(placemark[0].text, placemark[2][1].text.strip())
+        # placemark[3][1] for new
+        # placemark[2][1] for old
+        if placemark[1].text == "0":
+            yield StreetBlock(placemark[0].text, placemark[3][1].text.strip())
+        else:
+            yield StreetBlock(placemark[0].text, placemark[2][1].text.strip())
 
 
 def create_pass_through_folder(folder_root, style_nodes_dict, namespace):
@@ -51,8 +57,8 @@ def create_pass_through_folder(folder_root, style_nodes_dict, namespace):
     return PassThroughFolder(folder_root, styles)
 
 
-def read_conversations(doc, street_blocks):
-    """Read in conversation routes from KML document"""
+def read_conversation_data(doc, street_blocks):
+    """Read in conversation routes and notes from KML document"""
     namespace = get_kml_namespace()
 
     # Cache style -> color maps
@@ -83,6 +89,7 @@ def read_conversations(doc, street_blocks):
         print(' Reading conversation ' + residentFolder[0].text)
         subFolder_mapping = {}
         pass_through_nodes = []
+        notes = []
 
         walking_ability = get_walking_ability(residentFolder, namespace)
         biking_ability = get_biking_ability(residentFolder, namespace)
@@ -93,6 +100,7 @@ def read_conversations(doc, street_blocks):
             if subFolderName.lower() == walking_folder_name.lower() or \
                     subFolderName.lower() == biking_folder_name.lower() or \
                     subFolderName.lower() == hypotheticals_folder_name.lower():
+
                 subFolder_mapping[subFolderName] = read_conversation_routes(subFolder, namespace, style_map_dict,
                                                                             street_blocks, style_nodes_dict)
             # elif subFolderName.lower() == hypotheticals_folder_name.lower():
@@ -107,11 +115,14 @@ def read_conversations(doc, street_blocks):
             #        subFolder_mapping[hyp_folder_key] =
             #        read_conversation_routes(subHypFolder, namespace,
             #        style_map_dict, street_blocks, style_nodes_dict)
+            elif subFolderName.lower() == notes_folder_name.lower():
+                notes = read_notes(folder, namespace)
+
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping,
-                           pass_through_nodes)
+        yield (Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping,
+                            pass_through_nodes), NoteBundle(notes))
 
 
 def get_walking_ability(folder, namespace):
@@ -144,7 +155,7 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
 
     for subFolder in folder.xpath("./kml:Folder", namespaces=namespace):
         code = subFolder[0].text
-
+        # folder[0].text
         folders = []
         nontraditional = []
 
@@ -170,7 +181,8 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
                     elif color == str(color_1):
                         rating = 1  # Red
                     else:
-                        print('WARN: Unknown color ' + color + ' in ' + folder[0].text + '/' + code + '. Skipping ...')
+                        print('WARN: Unknown color ' + color + ' in ' + folder[
+                            0].text + '/' + code + '. Skipping ...')
                         continue
 
                     lines = list(populate_lines(coordinates[0].text.strip()))
@@ -179,6 +191,11 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
         coded_folders.append(ConversationCodedFolder(code, folders, nontraditional))
 
     return ConversationFolder(folder[0].text, coded_folders)
+
+
+def read_notes(folder, namespace):
+    for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
+        yield placemark
 
 
 def find_overlapping_streetblocks(street_blocks, path_measure_lines):
@@ -202,7 +219,7 @@ def is_block_overlapping(block, path_measure_lines):
 
 def ccw(A, B, C):
     return (C.latitude - A.latitude) * (B.longitude - A.longitude) > (B.latitude - A.latitude) * (
-                C.longitude - A.longitude)
+            C.longitude - A.longitude)
 
 
 # Return true if line segments AB and CD intersect
@@ -282,12 +299,13 @@ def write_trigger_lines_kml(output_path, street_blocks):
         generated_kml.write(etree.tounicode(kml, pretty_print=True))
         generated_kml.close()
 
-def write_final_kml(output_path, conversations, date):
+
+def write_final_kml(output_path, conversation_data, date):
     """Create the final KML output file"""
     kml = etree.Element('kml', nsmap=get_kml_namespace())
     document = create_node(kml, "Document", "Final Python Output " + date.strftime("%m/%d/%y"))
-    residents = create_folder(document, "Conversations")
-    compilations = create_folder(document, "Compilations")
+    conversations_folder = create_folder(document, "CONVERSATIONS")
+    compilations_folder = create_folder(document, "COMPILATIONS")
 
     # Add styles
     append_line_style(document, "purple", "FFFF01EA", 2)
@@ -310,9 +328,12 @@ def write_final_kml(output_path, conversations, date):
     color_dict[hypothetical_rating] = "ColorHyp"
     color_dict[-1.0] = "Color-1"
 
+    conversations = [c[0] for c in conversation_data]
+    notes = [n[1] for n in conversation_data]
+
     # Create one folder for each conversation
     for conversation in conversations:
-        resident = create_folder(residents, conversation.residentName)
+        resident_folder = create_folder(conversations_folder, conversation.residentName)
 
         hyp_folder = None
         codes = {}
@@ -324,7 +345,7 @@ def write_final_kml(output_path, conversations, date):
             # Handle hypothetical differently
             if hypotheticals_folder_name in route_folder_name:
                 if hyp_folder is None:
-                    hyp_folder = create_folder(resident, hypotheticals_folder_name)
+                    hyp_folder = create_folder(resident_folder, hypotheticals_folder_name)
 
                 for coded_folder in conversation_folder.coded_folders:
                     hyp_lines = []
@@ -338,7 +359,6 @@ def write_final_kml(output_path, conversations, date):
                                     print(block.name)
 
                     create_rating_subfolder(hyp_lines, hyp_folder, coded_folder.code, color_dict[hypothetical_rating])
-
             else:
                 for coded_folder in conversation_folder.coded_folders:
 
@@ -346,13 +366,13 @@ def write_final_kml(output_path, conversations, date):
                     if "GF" in coded_folder.code:
                         if "GF" not in codes:
                             # Create parent GF folder if it does not exist
-                            codes["GF"] = create_folder(resident, "GF")
+                            codes["GF"] = create_folder(resident_folder, "GF")
                         # Create biking or walking subfolder within GF
                         codes[coded_folder.code] = create_folder(codes["GF"], coded_folder.code)
                     elif "GTD" in coded_folder.code:
                         if "GTD" not in codes:
                             # Create parent GTD folder if it does not exist
-                            codes["GTD"] = create_folder(resident, "GTD")
+                            codes["GTD"] = create_folder(resident_folder, "GTD")
                         # Create biking or walking subfolder within GTD
                         codes[coded_folder.code] = create_folder(codes["GTD"], coded_folder.code)
 
@@ -391,12 +411,12 @@ def write_final_kml(output_path, conversations, date):
 
         # Add extra stuff (pass through nodes)
         for pass_through in conversation.pass_through_nodes:
-            resident.append(pass_through.folder_root)
+            resident_folder.append(pass_through.folder_root)
 
             for style in pass_through.styles:
                 document.append(style)
 
-    create_walking_compilation(document, compilations, conversations, color_dict)
+    create_walking_compilation(document, compilations_folder, conversations, notes, color_dict)
     # create_gradient_compilation(document, compilations, conversations, color_dict)
 
     with open(output_path, 'w') as generated_kml:
@@ -405,8 +425,9 @@ def write_final_kml(output_path, conversations, date):
         generated_kml.close()
 
 
-def create_walking_compilation(document, compilations, conversations, color_dict):
+def create_walking_compilation(document, compilations_folder, conversations, notes_list, color_dict):
     # top_level_folders = {}
+    notes = create_folder(compilations_folder, "Notes")
 
     folder_dict = {}
 
@@ -453,6 +474,10 @@ def create_walking_compilation(document, compilations, conversations, color_dict
                         else:
                             block_dict[block] = [route.rating]
 
+    for note_bundle in notes_list:
+        for note in note_bundle.notes:
+            notes.append(note)
+
     # process codes in a custom order
     def folderSort(val):
         if val == walking_folder_name: return 0
@@ -472,7 +497,15 @@ def create_walking_compilation(document, compilations, conversations, color_dict
     # for code in sorted(rating_dict.keys(), key = customSort):
     for folder_name in sorted(folder_dict.keys(), key=folderSort):
         ability_dict = folder_dict[folder_name]
-        top_level_folder = create_folder(compilations, folder_name)
+
+        if folder_name == walking_folder_name:
+            new_folder_name = "walking"
+        elif folder_name == biking_folder_name:
+            new_folder_name = "biking"
+        else:
+            new_folder_name = folder_name
+
+        top_level_folder = create_folder(compilations_folder, new_folder_name)
 
         for ability, code_dict in sorted(ability_dict.items(), key=abilitySort):
             if folder_name == hypotheticals_folder_name:
