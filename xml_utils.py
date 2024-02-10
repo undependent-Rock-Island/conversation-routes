@@ -116,7 +116,7 @@ def read_conversation_data(doc, street_blocks):
             #        read_conversation_routes(subHypFolder, namespace,
             #        style_map_dict, street_blocks, style_nodes_dict)
             elif subFolderName.lower() == notes_folder_name.lower():
-                notes = read_notes(folder, namespace)
+                notes = read_notes(subFolder, namespace)
 
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
