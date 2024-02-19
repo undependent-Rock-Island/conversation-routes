@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from lxml import etree
 from RouteEntities import StreetBlock, PassThroughFolder, Conversation, ConversationFolder, ConversationCodedFolder, \
     ConversationRoute, Color, populate_lines, NoteBundle
@@ -122,7 +124,7 @@ def read_conversation_data(doc, street_blocks):
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
         yield (Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping,
-                            pass_through_nodes), NoteBundle(notes))
+                          pass_through_nodes), NoteBundle(notes))
 
 
 def get_walking_ability(folder, namespace):
@@ -194,8 +196,11 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
 
 
 def read_notes(folder, namespace):
+    notes = []
     for placemark in folder.xpath('.//kml:Placemark', namespaces=namespace):
-        yield placemark
+        notes.append(placemark)
+
+    return notes
 
 
 def find_overlapping_streetblocks(street_blocks, path_measure_lines):
@@ -328,11 +333,11 @@ def write_final_kml(output_path, conversation_data, date):
     color_dict[hypothetical_rating] = "ColorHyp"
     color_dict[-1.0] = "Color-1"
 
-    conversations = [c[0] for c in conversation_data]
-    notes = [n[1] for n in conversation_data]
+    for datum in conversation_data:
+        conversation = datum[0]
+        resident_notes = datum[1]
 
-    # Create one folder for each conversation
-    for conversation in conversations:
+        # Create one folder for each conversation
         resident_folder = create_folder(conversations_folder, conversation.residentName)
 
         hyp_folder = None
@@ -416,7 +421,13 @@ def write_final_kml(output_path, conversation_data, date):
             for style in pass_through.styles:
                 document.append(style)
 
-    create_walking_compilation(document, compilations_folder, conversations, notes, color_dict)
+        # Add notes folder
+        if resident_notes.notes:
+            notes_folder = create_folder(resident_folder, notes_folder_name)
+            for note in resident_notes.notes:
+                notes_folder.append(deepcopy(note))
+
+    create_walking_compilation(document, compilations_folder, conversation_data, color_dict)
     # create_gradient_compilation(document, compilations, conversations, color_dict)
 
     with open(output_path, 'w') as generated_kml:
@@ -425,13 +436,16 @@ def write_final_kml(output_path, conversation_data, date):
         generated_kml.close()
 
 
-def create_walking_compilation(document, compilations_folder, conversations, notes_list, color_dict):
+def create_walking_compilation(document, compilations_folder, conversation_data, color_dict):
     # top_level_folders = {}
-    notes = create_folder(compilations_folder, "Notes")
 
     folder_dict = {}
+    notes = []
 
-    for conversation in conversations:
+    for datum in conversation_data:
+        conversation = datum[0]
+        note_bundle = datum[1]
+
         for route_folder_name, conversation_folder in conversation.conversation_folders.items():
 
             # if route_folder_name not in top_level_folders:
@@ -474,9 +488,8 @@ def create_walking_compilation(document, compilations_folder, conversations, not
                         else:
                             block_dict[block] = [route.rating]
 
-    for note_bundle in notes_list:
-        for note in note_bundle.notes:
-            notes.append(note)
+            for note in note_bundle.notes:
+                notes.append(note)
 
     # process codes in a custom order
     def folderSort(val):
@@ -551,6 +564,11 @@ def create_walking_compilation(document, compilations_folder, conversations, not
                 # Populate Hypothetical street blocks
                 for name, line in hyp_lines:
                     create_placemark(code_folder, name, line, color_dict[color])
+
+    # Add Notes to notes folder
+    notes_folder = create_folder(compilations_folder, "Notes")
+    for note in notes:
+        notes_folder.append(note)
 
 
 def calculate_rating(ratings, code):
