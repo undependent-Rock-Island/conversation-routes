@@ -567,8 +567,15 @@ def create_walking_compilation(document, compilations_folder, conversation_data,
 
     # Add Notes to notes folder
     notes_folder = create_folder(compilations_folder, "Notes")
+    avoided_ints_folder = create_folder(notes_folder, "Avoided Intersections")
+
     for note in notes:
-        notes_folder.append(note)
+        note_name = note.xpath('.//kml:name/text()', namespaces=get_kml_namespace())
+
+        if note_name and ("Avoided Intersection" in note_name[0] or "Bad Intersection" in note_name[0]):
+            avoided_ints_folder.append(note)
+        else:
+            notes_folder.append(note)
 
 
 def calculate_rating(ratings, code):
