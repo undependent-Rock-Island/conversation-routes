@@ -512,8 +512,20 @@ def create_walking_compilation(document, compilations_folder, conversation_data,
         ability_dict = folder_dict[folder_name]
 
         if folder_name == walking_folder_name:
+            for ability, purposes in ability_dict.items():
+                tmp = {}
+                for purpose, blocks in purposes.items():
+                    for block, nums in blocks.items():
+                        tmp.update({deepcopy(block): nums})
+                purposes.update({"eitherW": tmp})
             new_folder_name = "walking"
         elif folder_name == biking_folder_name:
+            for ability, purposes in ability_dict.items():
+                tmp = {}
+                for purpose, blocks in purposes.items():
+                    for block, nums in blocks.items():
+                        tmp.update({deepcopy(block): nums})
+                purposes.update({"eitherB": tmp})
             new_folder_name = "biking"
         else:
             new_folder_name = folder_name
