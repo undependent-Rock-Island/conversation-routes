@@ -93,8 +93,9 @@ def read_conversation_data(doc, street_blocks):
         pass_through_nodes = []
         notes = []
 
-        walking_ability = get_walking_ability(residentFolder, namespace)
-        biking_ability = get_biking_ability(residentFolder, namespace)
+        description = get_description(residentFolder, namespace)
+        walking_ability = get_walking_ability(description)
+        biking_ability = get_biking_ability(description)
 
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
@@ -123,13 +124,11 @@ def read_conversation_data(doc, street_blocks):
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield (Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping,
-                          pass_through_nodes), NoteBundle(notes))
+        yield (Conversation(residentFolder[0].text, description, walking_ability, biking_ability, subFolder_mapping,
+                            pass_through_nodes), NoteBundle(notes))
 
 
-def get_walking_ability(folder, namespace):
-    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
-
+def get_walking_ability(description):
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
     if "WGTD?=Y" in abilities or "GFW?=Y" in abilities:
@@ -141,8 +140,7 @@ def get_walking_ability(folder, namespace):
     return None
 
 
-def get_biking_ability(folder, namespace):
-    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
+def get_biking_ability(description):
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
     if "BGTD?=Y" in abilities or "GFBR?=Y" in abilities:
@@ -150,6 +148,10 @@ def get_biking_ability(folder, namespace):
         if "eBN?=BNAAS" in abilities: return "BNAAS"
 
         raise ValueError('Unknown biking code in description ' + description)
+
+
+def get_description(folder, namespace):
+    return folder.xpath("./kml:description", namespaces=namespace)[0].text
 
 
 def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
@@ -325,13 +327,11 @@ def write_final_kml(output_path, conversation_data, date):
     append_style_map(document, "ColorHyp", "color_hyp", "highlight")
     append_style_map(document, "Color-1", "purple", "highlight")
 
-    color_dict = {}
-
-    color_dict[3.0] = "Color3"
-    color_dict[2.0] = "Color2"
-    color_dict[1.0] = "Color1"
-    color_dict[hypothetical_rating] = "ColorHyp"
-    color_dict[-1.0] = "Color-1"
+    color_dict = {3.0: "Color3",
+                  2.0: "Color2",
+                  1.0: "Color1",
+                  hypothetical_rating: "ColorHyp",
+                  -1.0: "Color-1"}
 
     for datum in conversation_data:
         conversation = datum[0]
@@ -339,6 +339,8 @@ def write_final_kml(output_path, conversation_data, date):
 
         # Create one folder for each conversation
         resident_folder = create_folder(conversations_folder, conversation.residentName)
+
+        append_node_with_text(resident_folder, "description", conversation.description)
 
         hyp_folder = None
         codes = {}
