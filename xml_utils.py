@@ -8,8 +8,8 @@ color_3 = Color(255, 0, 255, 0)  # 'ff00ff00' Green
 color_2 = Color(255, 255, 255, 0)  # 'ff00ffff' Yellow
 color_1 = Color(255, 255, 0, 0)  # 'ff0000ff' Red
 hyp_color = Color(255, 70, 100, 250)  # fffa6446
-non_traditional_color = Color(255, 255, 0, 255)
-would_consider_color = Color(255, 70, 100, 250)
+non_traditional_color = Color(255, 255, 0, 255)  # ff00ff Pink
+would_consider_color = Color(255, 70, 100, 250)  # 4664fa Blue
 
 walking_folder_name = "W"
 biking_folder_name = "B"
@@ -168,19 +168,18 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
             coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
             color = style_map_dict[style_url[0].text][0][0].text
 
-            if coordinates != []:
-                rating = -1
-
+            if coordinates:
                 if color == str(non_traditional_color):
                     nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
-                else:
+                else:  # 2 and 0.5 come through here because some styles are missing color tags, but we still grab the
+                    # first tag. Need to investigate why color tags are missing on these
                     if color == str(hyp_color):
                         rating = hypothetical_rating
                     elif color == str(would_consider_color):
                         rating = would_consider_rating
-                    elif color == str(color_3):
-                        rating = 3  # Green
-                    elif color == str(color_2):
+                    elif color == str(color_3) or color == 'ff06ff21' or color == '2':
+                        rating = 3  # Green #ff06ff21 is a slightly different green
+                    elif color == str(color_2) or color == '0.5':
                         rating = 2  # Yellow
                     elif color == str(color_1):
                         rating = 1  # Red
