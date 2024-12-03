@@ -8,8 +8,8 @@ color_3 = Color(255, 0, 255, 0)  # 'ff00ff00' Green
 color_2 = Color(255, 255, 255, 0)  # 'ff00ffff' Yellow
 color_1 = Color(255, 255, 0, 0)  # 'ff0000ff' Red
 hyp_color = Color(255, 70, 100, 250)  # fffa6446
-non_traditional_color = Color(255, 255, 0, 255)
-would_consider_color = Color(255, 70, 100, 250)
+non_traditional_color = Color(255, 255, 0, 255)  # ff00ff Pink
+would_consider_color = Color(255, 70, 100, 250)  # 4664fa Blue
 
 walking_folder_name = "W"
 biking_folder_name = "B"
@@ -93,8 +93,9 @@ def read_conversation_data(doc, street_blocks):
         pass_through_nodes = []
         notes = []
 
-        walking_ability = get_walking_ability(residentFolder, namespace)
-        biking_ability = get_biking_ability(residentFolder, namespace)
+        description = get_description(residentFolder, namespace)
+        walking_ability = get_walking_ability(description)
+        biking_ability = get_biking_ability(description)
 
         for subFolder in residentFolder.xpath("./kml:Folder", namespaces=namespace):
             subFolderName = subFolder[0].text
@@ -123,13 +124,11 @@ def read_conversation_data(doc, street_blocks):
             else:
                 pass_through_nodes.append(create_pass_through_folder(subFolder, style_nodes_dict, namespace))
 
-        yield (Conversation(residentFolder[0].text, walking_ability, biking_ability, subFolder_mapping,
-                          pass_through_nodes), NoteBundle(notes))
+        yield (Conversation(residentFolder[0].text, description, walking_ability, biking_ability, subFolder_mapping,
+                            pass_through_nodes), NoteBundle(notes))
 
 
-def get_walking_ability(folder, namespace):
-    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
-
+def get_walking_ability(description):
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
     if "WGTD?=Y" in abilities or "GFW?=Y" in abilities:
@@ -141,8 +140,7 @@ def get_walking_ability(folder, namespace):
     return None
 
 
-def get_biking_ability(folder, namespace):
-    description = folder.xpath("./kml:description", namespaces=namespace)[0].text
+def get_biking_ability(description):
     abilities = list(filter(None, description.replace('\n', ' ').split(' ')))
 
     if "BGTD?=Y" in abilities or "GFBR?=Y" in abilities:
@@ -150,6 +148,10 @@ def get_biking_ability(folder, namespace):
         if "eBN?=BNAAS" in abilities: return "BNAAS"
 
         raise ValueError('Unknown biking code in description ' + description)
+
+
+def get_description(folder, namespace):
+    return folder.xpath("./kml:description", namespaces=namespace)[0].text
 
 
 def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, style_nodes_dict):
@@ -166,19 +168,18 @@ def read_conversation_routes(folder, namespace, style_map_dict, street_blocks, s
             coordinates = placemark.xpath('.//kml:LineString/kml:coordinates', namespaces=namespace)
             color = style_map_dict[style_url[0].text][0][0].text
 
-            if coordinates != []:
-                rating = -1
-
+            if coordinates:
                 if color == str(non_traditional_color):
                     nontraditional.append(create_pass_through_folder(placemark, style_nodes_dict, namespace))
-                else:
+                else:  # 2 and 0.5 come through here because some styles are missing color tags, but we still grab the
+                    # first tag. Need to investigate why color tags are missing on these
                     if color == str(hyp_color):
                         rating = hypothetical_rating
                     elif color == str(would_consider_color):
                         rating = would_consider_rating
-                    elif color == str(color_3):
-                        rating = 3  # Green
-                    elif color == str(color_2):
+                    elif color == str(color_3) or color == 'ff06ff21' or color == '2':
+                        rating = 3  # Green #ff06ff21 is a slightly different green
+                    elif color == str(color_2) or color == '0.5':
                         rating = 2  # Yellow
                     elif color == str(color_1):
                         rating = 1  # Red
@@ -325,13 +326,11 @@ def write_final_kml(output_path, conversation_data, date):
     append_style_map(document, "ColorHyp", "color_hyp", "highlight")
     append_style_map(document, "Color-1", "purple", "highlight")
 
-    color_dict = {}
-
-    color_dict[3.0] = "Color3"
-    color_dict[2.0] = "Color2"
-    color_dict[1.0] = "Color1"
-    color_dict[hypothetical_rating] = "ColorHyp"
-    color_dict[-1.0] = "Color-1"
+    color_dict = {3.0: "Color3",
+                  2.0: "Color2",
+                  1.0: "Color1",
+                  hypothetical_rating: "ColorHyp",
+                  -1.0: "Color-1"}
 
     for datum in conversation_data:
         conversation = datum[0]
@@ -339,6 +338,8 @@ def write_final_kml(output_path, conversation_data, date):
 
         # Create one folder for each conversation
         resident_folder = create_folder(conversations_folder, conversation.residentName)
+
+        append_node_with_text(resident_folder, "description", conversation.description)
 
         hyp_folder = None
         codes = {}
@@ -512,8 +513,20 @@ def create_walking_compilation(document, compilations_folder, conversation_data,
         ability_dict = folder_dict[folder_name]
 
         if folder_name == walking_folder_name:
+            for ability, purposes in ability_dict.items():
+                tmp = {}
+                for purpose, blocks in purposes.items():
+                    for block, nums in blocks.items():
+                        tmp.update({deepcopy(block): nums})
+                purposes.update({"eitherW": tmp})
             new_folder_name = "walking"
         elif folder_name == biking_folder_name:
+            for ability, purposes in ability_dict.items():
+                tmp = {}
+                for purpose, blocks in purposes.items():
+                    for block, nums in blocks.items():
+                        tmp.update({deepcopy(block): nums})
+                purposes.update({"eitherB": tmp})
             new_folder_name = "biking"
         else:
             new_folder_name = folder_name
